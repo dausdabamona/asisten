@@ -1,7 +1,8 @@
 // =============================================================================
-// ASISTEN - Phase 1 + Phase 2 + Phase 3: Travel, Treasury & Procurement Module
+// ASISTEN - Phase 1-4: Core, Travel, Treasury, Procurement & Audit Hardening
 // PostgreSQL Database Schema using Prisma ORM
 // Schema Name: asisten
+// Phase 4: Multi-year, Forensic Archive, WORM, RLS
 // =============================================================================
 
 generator client {
@@ -274,7 +275,48 @@ enum MetodePengadaan {
 // =============================================================================
 
 enum SignedMethod {
-  MANUAL_SCAN   // Manually signed and scanned document
+  BASAH_SCAN    // Manually signed wet ink and scanned document
+
+  @@schema("asisten")
+}
+
+// =============================================================================
+// ENUMS - Phase 4: Audit & Archive
+// =============================================================================
+
+enum DokumenVersiStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  FINAL           // Immutable - cannot be modified
+
+  @@schema("asisten")
+}
+
+enum BackupType {
+  FULL
+  INCREMENTAL
+  DIFFERENTIAL
+
+  @@schema("asisten")
+}
+
+enum BackupStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  VERIFIED
+
+  @@schema("asisten")
+}
+
+enum ArchiveLockReason {
+  WORKFLOW_COMPLETED
+  FISCAL_YEAR_CLOSED
+  LEGAL_HOLD
+  AUDIT_REQUIREMENT
+  ADMIN_LOCK
 
   @@schema("asisten")
 }
@@ -365,6 +407,10 @@ model users {
   sp2d_kuasa_bud          sp2d[]                    @relation("SP2DKuasaBUD")
   rekening_created        rekening_penyedia[]       @relation("RekeningCreatedBy")
   rekening_updated        rekening_penyedia[]       @relation("RekeningUpdatedBy")
+  // Phase 4 relations
+  archive_locks           archive_lock_log[]        @relation("ArchiveLockedBy")
+  backup_created          backup_catalog[]          @relation("BackupCreatedBy")
+  backup_verified         backup_catalog[]          @relation("BackupVerifiedBy")
 
   @@index([username])
   @@index([email])
@@ -694,7 +740,7 @@ model dokumen {
   @@schema("asisten")
 }
 
-/// Table 11: Dokumen Versi - Document version history
+/// Table 11: Dokumen Versi - Document version history with forensic audit trail
 model dokumen_versi {
   id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   dokumen_id   String   @db.Uuid
@@ -706,13 +752,19 @@ model dokumen_versi {
   checksum     String?  @db.VarChar(64)
   catatan      String?  @db.Text
   is_current   Boolean  @default(false)
-  // Phase 3: Manual Signed Document Upload
+  // Phase 3: Manual Signed Document Upload (BASAH_SCAN only)
   signed_by_name   String?       @db.VarChar(255)
   signed_by_role   String?       @db.VarChar(255)
   signed_date      DateTime?
   signed_method    SignedMethod?
   signed_file_path String?       @db.VarChar(1000)
   signed_file_hash String?       @db.VarChar(64)
+  // Phase 4: Forensic Archive & Multi-Year
+  tahun_anggaran        Int?                  // Fiscal year for partitioning
+  previous_version_hash String?              @db.VarChar(64)  // Hash chain link to previous version
+  version_status        DokumenVersiStatus   @default(DRAFT)  // FINAL = immutable
+  finalized_at          DateTime?            // Timestamp when status became FINAL
+  archive_path          String?              @db.VarChar(1000) // WORM archive location
 
   // Standard audit fields
   created_at DateTime @default(now())
@@ -731,6 +783,9 @@ model dokumen_versi {
   @@index([is_current])
   @@index([signed_file_hash])
   @@index([is_deleted])
+  @@index([tahun_anggaran])
+  @@index([version_status])
+  @@index([previous_version_hash])
   @@schema("asisten")
 }
 
@@ -1790,5 +1845,93 @@ model rekening_penyedia {
 
   @@index([kontrak_id])
   @@index([is_deleted])
+  @@schema("asisten")
+}
+
+// =============================================================================
+// PHASE 4: AUDIT-GRADE HARDENING & FORENSIC ARCHIVE TABLES (40-41)
+// =============================================================================
+
+/// Table 40: Archive Lock Log - WORM behavior audit trail
+/// Records when records are locked for archival purposes (immutable)
+model archive_lock_log {
+  id                String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tahun_anggaran    Int               // Fiscal year
+  entity_type       String            @db.VarChar(100)  // Table name: paket, workflow_instance, etc.
+  entity_id         String            @db.Uuid          // Primary key of locked record
+  lock_reason       ArchiveLockReason @default(WORKFLOW_COMPLETED)
+  locked_at         DateTime          @default(now())
+  locked_by         String?           @db.Uuid
+  // Hash chain for integrity
+  record_hash       String            @db.VarChar(64)   // SHA-256 hash of record at lock time
+  previous_log_hash String?           @db.VarChar(64)   // Chain to previous log entry
+  // Metadata
+  workflow_state    String?           @db.VarChar(50)   // State at time of lock
+  document_count    Int?              // Number of documents archived
+  total_nilai       Decimal?          @db.Decimal(18, 2) // Total contract/payment value
+  catatan           String?           @db.Text
+
+  // Standard audit fields (created_at only - immutable record)
+  created_at DateTime @default(now())
+
+  // Relations
+  locker users? @relation("ArchiveLockedBy", fields: [locked_by], references: [id])
+
+  @@unique([entity_type, entity_id])  // One lock per entity
+  @@index([tahun_anggaran])
+  @@index([entity_type])
+  @@index([entity_id])
+  @@index([lock_reason])
+  @@index([locked_at])
+  @@index([record_hash])
+  @@index([previous_log_hash])
+  @@schema("asisten")
+}
+
+/// Table 41: Backup Catalog - Disaster recovery metadata
+/// Tracks all backup operations for audit compliance
+model backup_catalog {
+  id                 String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tahun_anggaran     Int          // Fiscal year being backed up
+  backup_type        BackupType   @default(FULL)
+  backup_name        String       @db.VarChar(255)  // Descriptive name
+  backup_path        String       @db.VarChar(1000) // Storage location (WORM archive)
+  backup_size        BigInt?      // Size in bytes
+  // Integrity verification
+  backup_hash        String       @db.VarChar(64)   // SHA-256 of backup file
+  manifest_hash      String?      @db.VarChar(64)   // Hash of backup manifest
+  // Status tracking
+  status             BackupStatus @default(PENDING)
+  started_at         DateTime     @default(now())
+  completed_at       DateTime?
+  verified_at        DateTime?
+  verified_by        String?      @db.Uuid
+  // Statistics
+  table_count        Int?         // Number of tables backed up
+  record_count       Int?         // Total records backed up
+  document_count     Int?         // Documents/attachments backed up
+  // Error handling
+  error_message      String?      @db.Text
+  retry_count        Int          @default(0)
+  // Retention
+  retention_days     Int          @default(2555)    // ~7 years for government compliance
+  expires_at         DateTime?
+
+  // Standard audit fields
+  created_at DateTime @default(now())
+  created_by String?  @db.Uuid
+  updated_at DateTime @updatedAt
+
+  // Relations
+  creator  users? @relation("BackupCreatedBy", fields: [created_by], references: [id])
+  verifier users? @relation("BackupVerifiedBy", fields: [verified_by], references: [id])
+
+  @@index([tahun_anggaran])
+  @@index([backup_type])
+  @@index([status])
+  @@index([started_at])
+  @@index([completed_at])
+  @@index([backup_hash])
+  @@index([expires_at])
   @@schema("asisten")
 }
