@@ -1,0 +1,44 @@
+{
+  "name": "asisten",
+  "version": "1.0.0",
+  "description": "ASISTEN - Phase 1 Core System for Local Offline PostgreSQL Application",
+  "main": "index.js",
+  "scripts": {
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:generate": "prisma generate",
+    "db:seed": "ts-node prisma/seed.ts",
+    "db:seed:sql": "psql -f prisma/seed.sql",
+    "db:reset": "prisma migrate reset",
+    "db:studio": "prisma studio",
+    "prisma:format": "prisma format",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://local_proxy@127.0.0.1:50149/git/dausdabamona/asisten"
+  },
+  "keywords": [
+    "postgresql",
+    "prisma",
+    "workflow",
+    "document-management",
+    "sppd",
+    "finance"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@prisma/client": "^7.2.0",
+    "@types/node": "^20.0.0",
+    "prisma": "^7.2.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.2.0"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  }
+}
