@@ -3,7 +3,8 @@
 // Handles KAK, HPS, Kontrak, SPMK operations
 // =============================================================================
 
-import { PrismaClient, KAKStatus, HPSStatus, KontrakStatus, SPMKStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { KAKStatus, HPSStatus, KontrakStatus, SPMKStatus } from '../types';
 
 const prisma = new PrismaClient();
 

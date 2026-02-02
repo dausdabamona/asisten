@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Pegawai API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+        select { padding: 8px; min-width: 300px; }
+        .count { color: green; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Test Pegawai API</h1>
+    
+    <div class="section">
+        <h2>API Status</h2>
+        <button onclick="checkAPI()">Check electronAPI</button>
+        <pre id="api-status"></pre>
+    </div>
+
+    <div class="section">
+        <h2>Load Pegawai</h2>
+        <button onclick="loadPegawai()">Load Pegawai List</button>
+        <div id="pegawai-count" class="count"></div>
+        <pre id="pegawai-result"></pre>
+    </div>
+
+    <div class="section">
+        <h2>Test Dropdown</h2>
+        <label>Select Pegawai:</label><br>
+        <select id="pegawai-dropdown">
+            <option value="">-- Loading... --</option>
+        </select>
+    </div>
+
+    <script>
+        let pegawaiData = [];
+
+        function checkAPI() {
+            const status = document.getElementById('api-status');
+            const info = {
+                electronAPI: typeof window.electronAPI,
+                pegawai: typeof window.electronAPI?.pegawai,
+                pegawaiList: typeof window.electronAPI?.pegawai?.list,
+                satker: typeof window.electronAPI?.satker,
+                satkerCreate: typeof window.electronAPI?.satker?.create
+            };
+            status.textContent = JSON.stringify(info, null, 2);
+        }
+
+        async function loadPegawai() {
+            const resultDiv = document.getElementById('pegawai-result');
+            const countDiv = document.getElementById('pegawai-count');
+            const dropdown = document.getElementById('pegawai-dropdown');
+            
+            try {
+                console.log('Calling pegawai.list()...');
+                const result = await window.electronAPI.pegawai.list({ limit: 1000 });
+                console.log('Result:', result);
+                
+                resultDiv.textContent = JSON.stringify(result, null, 2);
+                
+                if (result.success && result.data) {
+                    pegawaiData = result.data;
+                    countDiv.textContent = `✅ Loaded ${result.data.length} pegawai records`;
+                    
+                    // Populate dropdown
+                    dropdown.innerHTML = '<option value="">-- Pilih Pegawai --</option>';
+                    result.data.forEach(p => {
+                        const option = document.createElement('option');
+                        option.value = p.nip;
+                        option.textContent = `${p.nama} (${p.nip})`;
+                        dropdown.appendChild(option);
+                    });
+                    
+                    console.log('Dropdown populated with', result.data.length, 'options');
+                } else {
+                    countDiv.textContent = '❌ Failed to load pegawai';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.textContent = 'ERROR: ' + error.message;
+                countDiv.textContent = '❌ Error: ' + error.message;
+            }
+        }
+
+        // Auto-load on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Page loaded');
+            checkAPI();
+            setTimeout(loadPegawai, 1000);
+        });
+    </script>
+</body>
+</html>

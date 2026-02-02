@@ -3,7 +3,8 @@
  * Business logic for workflow transitions and approvals
  */
 
-import { PrismaClient, ApprovalStatus, SPJStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { ApprovalStatus, SPJStatus } from '../types';
 import { ApproveDTO, TransitionWorkflowDTO, RequestContext } from '../types';
 import { AuditService } from './audit.service';
 

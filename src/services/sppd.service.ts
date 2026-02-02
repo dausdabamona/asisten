@@ -3,7 +3,8 @@
  * Business logic for Surat Tugas and SPPD operations
  */
 
-import { PrismaClient, SuratTugasStatus, SppdStatus, DokumenTipe } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { SuratTugasStatus, SppdStatus, DokumenTipe } from '../types';
 import { CreateSuratTugasDTO, TerbitSppdDTO, RequestContext } from '../types';
 import { AuditService } from './audit.service';
 

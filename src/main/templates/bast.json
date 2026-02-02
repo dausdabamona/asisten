@@ -1,0 +1,147 @@
+{
+  "documentType": "bast",
+  "title": "BERITA ACARA SERAH TERIMA",
+  "subtitle": "HASIL PEKERJAAN",
+  "description": "Dokumen serah terima hasil pekerjaan pengadaan",
+  "paperSize": "A4",
+  "orientation": "portrait",
+  "margins": {
+    "top": 50,
+    "bottom": 50,
+    "left": 60,
+    "right": 60
+  },
+  "header": {
+    "showLogo": true,
+    "showMinistry": true,
+    "showInstitution": true,
+    "showAddress": true,
+    "showContact": true,
+    "lineStyle": "double"
+  },
+  "requiredFields": [
+    "contract_number",
+    "vendor_name"
+  ],
+  "optionalFields": [
+    "request_id",
+    "receiver_name",
+    "receiver_position",
+    "receiver_nip",
+    "vendor_contact_person",
+    "vendor_position",
+    "contract_date",
+    "items",
+    "item_name",
+    "inspection_result",
+    "deficiencies",
+    "warranty_period",
+    "status"
+  ],
+  "sections": [
+    {
+      "type": "title",
+      "text": "BERITA ACARA SERAH TERIMA",
+      "fontSize": 14,
+      "bold": true,
+      "align": "center"
+    },
+    {
+      "type": "subtitle",
+      "text": "HASIL PEKERJAAN",
+      "fontSize": 12,
+      "align": "center"
+    },
+    {
+      "type": "documentNumber",
+      "prefix": "BAST",
+      "format": "{sequence}/{prefix}/{unit}/{year}"
+    },
+    {
+      "type": "introduction",
+      "text": "Pada hari ini, {formal_date}, bertempat di {city}, kami yang bertanda tangan di bawah ini:"
+    },
+    {
+      "type": "numberedParty",
+      "number": 1,
+      "fields": [
+        {"label": "Nama", "value": "{receiver_name}"},
+        {"label": "Jabatan", "value": "{receiver_position}"},
+        {"label": "Instansi", "value": "{institution_name}"}
+      ],
+      "designation": "Selanjutnya disebut PIHAK PERTAMA (Penerima)"
+    },
+    {
+      "type": "numberedParty",
+      "number": 2,
+      "fields": [
+        {"label": "Nama", "value": "{vendor_contact_person}"},
+        {"label": "Jabatan", "value": "{vendor_position}"},
+        {"label": "Perusahaan", "value": "{vendor_name}"}
+      ],
+      "designation": "Selanjutnya disebut PIHAK KEDUA (Penyedia)"
+    },
+    {
+      "type": "reference",
+      "title": "Berdasarkan:",
+      "items": [
+        "Kontrak/Surat Perjanjian Nomor: {contract_number}",
+        "Tanggal: {contract_date}"
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Dengan ini menyatakan bahwa PIHAK KEDUA telah menyerahkan kepada PIHAK PERTAMA hasil pekerjaan sebagai berikut:"
+    },
+    {
+      "type": "itemsTable",
+      "headers": ["No", "Uraian", "Volume", "Satuan", "Keterangan"],
+      "columnWidths": [30, "auto", 60, 60, 70],
+      "dataSource": "items"
+    },
+    {
+      "type": "inspectionResult",
+      "title": "HASIL PEMERIKSAAN:",
+      "variants": {
+        "sesuai": "Setelah dilakukan pemeriksaan, hasil pekerjaan dinyatakan SESUAI dengan spesifikasi teknis dan ketentuan dalam kontrak.",
+        "tidak_sesuai": "Setelah dilakukan pemeriksaan, ditemukan kekurangan/ketidaksesuaian sebagai berikut:\n{deficiencies}"
+      }
+    },
+    {
+      "type": "warranty",
+      "title": "MASA GARANSI:",
+      "condition": "warranty_period",
+      "template": "Masa garansi adalah {warranty_period} bulan terhitung sejak tanggal Berita Acara ini ditandatangani, yaitu sampai dengan {warranty_end_date}."
+    },
+    {
+      "type": "closing",
+      "text": "Demikian Berita Acara Serah Terima ini dibuat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya."
+    },
+    {
+      "type": "signatures",
+      "layout": "two-column",
+      "left": {
+        "title": "PIHAK KEDUA",
+        "subtitle": "Yang Menyerahkan,",
+        "signer": "{vendor_contact_person}",
+        "identifier": "{vendor_position}"
+      },
+      "right": {
+        "title": "PIHAK PERTAMA",
+        "subtitle": "Yang Menerima,",
+        "signer": "{receiver_name}",
+        "identifier": "NIP. {receiver_nip}"
+      }
+    }
+  ],
+  "watermark": {
+    "showOnDraft": true,
+    "text": "DRAFT",
+    "opacity": 0.2,
+    "angle": -45
+  },
+  "footer": {
+    "showPageNumbers": true,
+    "format": "Halaman {current} dari {total}"
+  }
+}

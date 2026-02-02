@@ -3,7 +3,8 @@
 // Handles SPP, SPM, SP2D operations
 // =============================================================================
 
-import { PrismaClient, SPPStatus, SPMStatus, SP2DStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { SPPStatus, SPMStatus, SP2DStatus } from '../types';
 
 const prisma = new PrismaClient();
 

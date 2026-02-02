@@ -1,0 +1,40 @@
+appId: id.ac.pkpsorong.ppk-assistant
+productName: PPK Assistant
+copyright: Copyright © 2025 Politeknik Kelautan dan Perikanan Sorong
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - src/main/**/*
+  - src/preload/**/*
+  - dist/renderer/**/*
+  - package.json
+  - node_modules/**/*
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: PPK Assistant
+
+mac:
+  target: dmg
+  icon: build/icon.icns
+  category: public.app-category.productivity
+
+linux:
+  target: AppImage
+  icon: build/icon.png
+  category: Office

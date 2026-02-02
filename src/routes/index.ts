@@ -8,8 +8,12 @@ import { KeuanganService } from '../services/keuangan.service';
 import { WorkflowService } from '../services/workflow.service';
 import { AuditService } from '../services/audit.service';
 import { ApiResponse, RequestContext } from '../types';
+import crudRoutes from './crud.routes';
 
 const router = Router();
+
+// Mount CRUD routes for base entities
+router.use('/', crudRoutes);
 
 // Helper to extract context from request
 function getContext(req: Request): RequestContext {

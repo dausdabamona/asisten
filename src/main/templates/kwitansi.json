@@ -1,0 +1,106 @@
+{
+  "documentType": "kwitansi",
+  "title": "KWITANSI",
+  "description": "Bukti penerimaan pembayaran",
+  "paperSize": "A4",
+  "orientation": "portrait",
+  "margins": {
+    "top": 50,
+    "bottom": 50,
+    "left": 60,
+    "right": 60
+  },
+  "header": {
+    "showLogo": true,
+    "showMinistry": true,
+    "showInstitution": true,
+    "showAddress": true,
+    "showContact": true,
+    "lineStyle": "double"
+  },
+  "requiredFields": [
+    "request_number",
+    "item_name",
+    "estimated_value"
+  ],
+  "optionalFields": [
+    "description",
+    "ppk_name",
+    "ppk_nip",
+    "recipient_name",
+    "include_tax",
+    "include_ppn",
+    "include_pph"
+  ],
+  "sections": [
+    {
+      "type": "title",
+      "text": "KWITANSI",
+      "fontSize": 14,
+      "bold": true,
+      "align": "center"
+    },
+    {
+      "type": "documentNumber",
+      "prefix": "KW",
+      "format": "{sequence}/{prefix}/{unit}/{year}"
+    },
+    {
+      "type": "field",
+      "label": "Sudah terima dari",
+      "value": "{institution_name}",
+      "layout": "inline"
+    },
+    {
+      "type": "amountBox",
+      "label": "Uang sejumlah",
+      "value": "{amount_words}",
+      "style": "bordered"
+    },
+    {
+      "type": "field",
+      "label": "Untuk pembayaran",
+      "value": "{description}",
+      "layout": "block"
+    },
+    {
+      "type": "amountDisplay",
+      "value": "{amount}",
+      "style": "highlighted"
+    },
+    {
+      "type": "taxBreakdown",
+      "show": true,
+      "items": [
+        {"label": "PPh Pasal 22 (1.5%)", "field": "pph"},
+        {"label": "PPN (11%)", "field": "ppn"},
+        {"label": "Total Potongan", "field": "total_tax"},
+        {"label": "Jumlah Bersih", "field": "net_amount"}
+      ]
+    },
+    {
+      "type": "signatures",
+      "layout": "two-column",
+      "left": {
+        "title": "Yang Menerima",
+        "showDate": true,
+        "showMaterai": true,
+        "materaiValue": 10000
+      },
+      "right": {
+        "title": "Yang Membayar",
+        "position": "PPK",
+        "showNIP": true
+      }
+    }
+  ],
+  "watermark": {
+    "showOnDraft": true,
+    "text": "DRAFT",
+    "opacity": 0.2,
+    "angle": -45
+  },
+  "footer": {
+    "showPageNumbers": false
+  }
+}

@@ -1,1937 +1,769 @@
 // =============================================================================
-// ASISTEN - Phase 1-4: Core, Travel, Treasury, Procurement & Audit Hardening
-// PostgreSQL Database Schema using Prisma ORM
-// Schema Name: asisten
-// Phase 4: Multi-year, Forensic Archive, WORM, RLS
+// ASISTEN - Normalized Schema (v3.1)
+// SQLite Database with Balanced Normalization (~24 tables)
+// Generic document pattern + proper FK relationships + workflow
 // =============================================================================
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["multiSchema"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
-  schemas  = ["asisten"]
 }
 
 // =============================================================================
-// ENUMS - Core States
+// 1. USERS & ACCESS CONTROL (3 tables)
 // =============================================================================
 
-enum WorkflowState {
-  PERENCANAAN
-  PERSIAPAN
-  KONTRAK
-  PELAKSANAAN
-  PEMBAYARAN
-  ARSIP
-
-  @@schema("asisten")
-}
-
-enum ApprovalStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  REVISION_REQUESTED
-
-  @@schema("asisten")
-}
-
-// =============================================================================
-// ENUMS - Document Types (Phase 2 Extended)
-// =============================================================================
-
-enum DokumenTipe {
-  // Phase 1 types
-  KONTRAK
-  ADENDUM
-  SURAT_TUGAS
-  SPPD
-  KUITANSI
-  LAPORAN
-  BERITA_ACARA
-  LAINNYA
-  // Phase 2 additions
-  KUITANSI_UM       // Kuitansi Uang Muka
-  KUITANSI_RAMPUNG  // Kuitansi Rampung/Final
-  LAPORAN_SPPD      // Laporan Perjalanan Dinas
-  SPJ_UP            // SPJ Uang Persediaan
-  SPJ_TUP           // SPJ Tambahan Uang Persediaan
-  // Phase 3 additions - Procurement
-  KAK               // Kerangka Acuan Kerja
-  HPS               // Harga Perkiraan Sendiri
-  RANCANGAN_KONTRAK
-  SSUK              // Syarat-Syarat Umum Kontrak
-  SSKK              // Syarat-Syarat Khusus Kontrak
-  SPMK              // Surat Perintah Mulai Kerja
-  ADENDUM_KONTRAK
-  BA_KEMAJUAN       // Berita Acara Kemajuan
-  BAHP              // Berita Acara Hasil Pemeriksaan
-  BAST              // Berita Acara Serah Terima
-  // Phase 3 additions - Payment
-  SPP               // Surat Permintaan Pembayaran
-  SPM               // Surat Perintah Membayar
-  SP2D              // Surat Perintah Pencairan Dana
-
-  @@schema("asisten")
-}
-
-enum DokumenRelasiTipe {
-  ADENDUM
-  REVISI
-  LAMPIRAN
-  REFERENSI
-
-  @@schema("asisten")
-}
-
-// =============================================================================
-// ENUMS - Travel Status (Phase 2 Enhanced)
-// =============================================================================
-
-enum PerjalananStatus {
-  DRAFT
-  DIAJUKAN
-  DISETUJUI
-  BERLANGSUNG
-  SELESAI
-  DIBATALKAN
-
-  @@schema("asisten")
-}
-
-enum SuratTugasStatus {
-  DRAFT
-  MENUNGGU_APPROVAL
-  APPROVED
-  REJECTED
-  FINAL
-
-  @@schema("asisten")
-}
-
-enum SppdStatus {
-  DRAFT
-  MENUNGGU_ST        // Waiting for Surat Tugas approval
-  TERBIT
-  BERLANGSUNG
-  SELESAI
-  DIBATALKAN
-
-  @@schema("asisten")
-}
-
-// =============================================================================
-// ENUMS - Treasury Status (Phase 2)
-// =============================================================================
-
-enum TreasuryType {
-  UP    // Uang Persediaan
-  TUP   // Tambahan Uang Persediaan
-
-  @@schema("asisten")
-}
-
-enum KuitansiTipe {
-  UANG_MUKA   // Advance payment receipt
-  RAMPUNG     // Final settlement receipt
-  OPERASIONAL // General operational expense
-
-  @@schema("asisten")
-}
-
-enum PembayaranStatus {
-  DRAFT
-  DIAJUKAN
-  DIVERIFIKASI
-  DIBAYAR
-  DITOLAK
-
-  @@schema("asisten")
-}
-
-enum SPJStatus {
-  DRAFT
-  DIAJUKAN
-  DIPERIKSA
-  DIVERIFIKASI
-  DISAHKAN
-  DITOLAK
-  SELESAI
-
-  @@schema("asisten")
-}
-
-// =============================================================================
-// ENUMS - Procurement Status (Phase 3)
-// =============================================================================
-
-enum KAKStatus {
-  DRAFT
-  MENUNGGU_APPROVAL
-  APPROVED
-  REJECTED
-  FINAL
-
-  @@schema("asisten")
-}
-
-enum HPSStatus {
-  DRAFT
-  MENUNGGU_APPROVAL
-  APPROVED
-  REJECTED
-  FINAL
-
-  @@schema("asisten")
-}
-
-enum KontrakStatus {
-  DRAFT
-  NEGOSIASI
-  MENUNGGU_TTD      // Menunggu tanda tangan
-  AKTIF
-  SELESAI
-  DIBATALKAN
-  DIPUTUS           // Terminated
-
-  @@schema("asisten")
-}
-
-enum SPMKStatus {
-  DRAFT
-  TERBIT
-  BERLANGSUNG
-  SELESAI
-  DIBATALKAN
-
-  @@schema("asisten")
-}
-
-enum BASTStatus {
-  DRAFT
-  DIAJUKAN
-  DIPERIKSA         // Under review (BAHP)
-  DIVERIFIKASI
-  DITERIMA          // Accepted
-  DITOLAK
-
-  @@schema("asisten")
-}
-
-enum SPPStatus {
-  DRAFT
-  DIAJUKAN
-  DIVERIFIKASI
-  APPROVED
-  REJECTED
-  TERBIT_SPM        // SPM has been issued
-
-  @@schema("asisten")
-}
-
-enum SPMStatus {
-  DRAFT
-  TERBIT
-  DIAJUKAN_SP2D
-  SELESAI
-
-  @@schema("asisten")
-}
-
-enum SP2DStatus {
-  DRAFT
-  TERBIT
-  DICAIRKAN         // Disbursed
-  SELESAI
-
-  @@schema("asisten")
-}
-
-enum JenisPengadaan {
-  BARANG
-  JASA_KONSULTANSI
-  JASA_LAINNYA
-  PEKERJAAN_KONSTRUKSI
-
-  @@schema("asisten")
-}
-
-enum MetodePengadaan {
-  PENGADAAN_LANGSUNG
-  PENUNJUKAN_LANGSUNG
-  TENDER
-  SELEKSI
-  E_PURCHASING
-
-  @@schema("asisten")
-}
-
-// =============================================================================
-// ENUMS - Document Signing (Phase 3)
-// =============================================================================
-
-enum SignedMethod {
-  BASAH_SCAN    // Manually signed wet ink and scanned document
-
-  @@schema("asisten")
-}
-
-// =============================================================================
-// ENUMS - Phase 4: Audit & Archive
-// =============================================================================
-
-enum DokumenVersiStatus {
-  DRAFT
-  PENDING_APPROVAL
-  APPROVED
-  FINAL           // Immutable - cannot be modified
-
-  @@schema("asisten")
-}
-
-enum BackupType {
-  FULL
-  INCREMENTAL
-  DIFFERENTIAL
-
-  @@schema("asisten")
-}
-
-enum BackupStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  FAILED
-  VERIFIED
-
-  @@schema("asisten")
-}
-
-enum ArchiveLockReason {
-  WORKFLOW_COMPLETED
-  FISCAL_YEAR_CLOSED
-  LEGAL_HOLD
-  AUDIT_REQUIREMENT
-  ADMIN_LOCK
-
-  @@schema("asisten")
-}
-
-// =============================================================================
-// SECURITY TABLES (1-3)
-// =============================================================================
-
-/// Table 1: Users - Core user management
+/// Users - Akun pengguna sistem
 model users {
-  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  username   String   @unique @db.VarChar(100)
-  email      String   @unique @db.VarChar(255)
-  password   String   @db.VarChar(255)
-  nama       String   @db.VarChar(255)
-  nip        String?  @db.VarChar(50)
-  jabatan    String?  @db.VarChar(255)
-  unit_kerja String?  @db.VarChar(255)
-  is_active  Boolean  @default(true)
+  id         String    @id @default(uuid())
+  username   String    @unique
+  email      String    @unique
+  password   String
+  is_active  Boolean   @default(true)
   last_login DateTime?
 
-  // Standard audit fields
+  // Link ke pegawai (opsional)
+  pegawai_id String?   @unique
+
   created_at DateTime  @default(now())
-  created_by String?   @db.Uuid
   updated_at DateTime  @updatedAt
-  updated_by String?   @db.Uuid
   is_deleted Boolean   @default(false)
 
   // Relations
-  user_roles              user_roles[]
-  created_paket           paket[]                   @relation("PaketCreatedBy")
-  updated_paket           paket[]                   @relation("PaketUpdatedBy")
-  created_kegiatan        kegiatan[]                @relation("KegiatanCreatedBy")
-  updated_kegiatan        kegiatan[]                @relation("KegiatanUpdatedBy")
-  created_workflow_inst   workflow_instance[]       @relation("WorkflowInstanceCreatedBy")
-  updated_workflow_inst   workflow_instance[]       @relation("WorkflowInstanceUpdatedBy")
-  created_dokumen         dokumen[]                 @relation("DokumenCreatedBy")
-  updated_dokumen         dokumen[]                 @relation("DokumenUpdatedBy")
-  created_dokumen_versi   dokumen_versi[]           @relation("DokumenVersiCreatedBy")
-  approval_logs           approval_log[]            @relation("ApprovalLogApprover")
-  audit_logs              audit_log[]               @relation("AuditLogActor")
-  perjalanan_created      perjalanan_dinas[]        @relation("PerjalananCreatedBy")
-  perjalanan_updated      perjalanan_dinas[]        @relation("PerjalananUpdatedBy")
-  peserta_perjalanan      peserta_perjalanan[]
-  surat_tugas_created     surat_tugas[]             @relation("SuratTugasCreatedBy")
-  surat_tugas_updated     surat_tugas[]             @relation("SuratTugasUpdatedBy")
-  surat_tugas_penanda     surat_tugas[]             @relation("SuratTugasPenandaTangan")
-  sppd_created            sppd[]                    @relation("SppdCreatedBy")
-  sppd_updated            sppd[]                    @relation("SppdUpdatedBy")
-  sppd_pejabat            sppd[]                    @relation("SppdPejabat")
-  up_created              uang_persediaan[]         @relation("UPCreatedBy")
-  up_updated              uang_persediaan[]         @relation("UPUpdatedBy")
-  up_bendahara            uang_persediaan[]         @relation("UPBendahara")
-  tup_created             tambahan_uang_persediaan[] @relation("TUPCreatedBy")
-  tup_updated             tambahan_uang_persediaan[] @relation("TUPUpdatedBy")
-  tup_bendahara           tambahan_uang_persediaan[] @relation("TUPBendahara")
-  kuitansi_created        kuitansi[]                @relation("KuitansiCreatedBy")
-  kuitansi_updated        kuitansi[]                @relation("KuitansiUpdatedBy")
-  spj_created             pertanggungjawaban[]      @relation("SPJCreatedBy")
-  spj_updated             pertanggungjawaban[]      @relation("SPJUpdatedBy")
-  spj_verifikator         pertanggungjawaban[]      @relation("SPJVerifikator")
-  spj_pengesah            pertanggungjawaban[]      @relation("SPJPengesah")
-  // Phase 3 relations
-  kak_created             kak[]                     @relation("KAKCreatedBy")
-  kak_updated             kak[]                     @relation("KAKUpdatedBy")
-  kak_ppk                 kak[]                     @relation("KAKPejabatPPK")
-  hps_created             hps[]                     @relation("HPSCreatedBy")
-  hps_updated             hps[]                     @relation("HPSUpdatedBy")
-  hps_penyusun            hps[]                     @relation("HPSPenyusun")
-  kontrak_created         kontrak[]                 @relation("KontrakCreatedBy")
-  kontrak_updated         kontrak[]                 @relation("KontrakUpdatedBy")
-  kontrak_ppk             kontrak[]                 @relation("KontrakPPK")
-  spmk_created            spmk[]                    @relation("SPMKCreatedBy")
-  spmk_updated            spmk[]                    @relation("SPMKUpdatedBy")
-  spmk_ppk                spmk[]                    @relation("SPMKPejabatPPK")
-  bast_created            bast[]                    @relation("BASTCreatedBy")
-  bast_updated            bast[]                    @relation("BASTUpdatedBy")
-  bast_ppk                bast[]                    @relation("BASTPejabatPPK")
-  bast_penerima           bast[]                    @relation("BASTPenerima")
-  spp_created             spp[]                     @relation("SPPCreatedBy")
-  spp_updated             spp[]                     @relation("SPPUpdatedBy")
-  spp_ppk                 spp[]                     @relation("SPPPejabatPPK")
-  spm_created             spm[]                     @relation("SPMCreatedBy")
-  spm_updated             spm[]                     @relation("SPMUpdatedBy")
-  spm_kuasa_pa            spm[]                     @relation("SPMKuasaPA")
-  sp2d_created            sp2d[]                    @relation("SP2DCreatedBy")
-  sp2d_updated            sp2d[]                    @relation("SP2DUpdatedBy")
-  sp2d_kuasa_bud          sp2d[]                    @relation("SP2DKuasaBUD")
-  rekening_created        rekening_penyedia[]       @relation("RekeningCreatedBy")
-  rekening_updated        rekening_penyedia[]       @relation("RekeningUpdatedBy")
-  // Phase 4 relations
-  archive_locks           archive_lock_log[]        @relation("ArchiveLockedBy")
-  backup_created          backup_catalog[]          @relation("BackupCreatedBy")
-  backup_verified         backup_catalog[]          @relation("BackupVerifiedBy")
+  pegawai     pegawai?     @relation(fields: [pegawai_id], references: [id])
+  user_roles  user_roles[]
 
   @@index([username])
-  @@index([email])
   @@index([is_deleted])
-  @@schema("asisten")
 }
 
-/// Table 2: Roles - Role definitions
+/// Roles - Definisi role/peran
 model roles {
-  id          String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  kode        String  @unique @db.VarChar(50)
-  nama        String  @db.VarChar(100)
-  deskripsi   String? @db.Text
+  id          String  @id @default(uuid())
+  kode        String  @unique
+  nama        String
+  deskripsi   String?
   level       Int     @default(0)
-  permissions Json?
+  permissions String? // JSON: array of permission codes
 
-  // Standard audit fields
   created_at DateTime @default(now())
-  created_by String?  @db.Uuid
   updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
   is_deleted Boolean  @default(false)
 
   // Relations
-  user_roles       user_roles[]
-  approval_logs    approval_log[]
-  workflow_actions workflow_action[]
+  user_roles      user_roles[]
+  workflow_stages workflow_stage[]  // Stages yang memerlukan role ini
 
   @@index([kode])
-  @@index([is_deleted])
-  @@schema("asisten")
 }
 
-/// Table 3: User Roles - Many-to-many user-role assignments
+/// User Roles - Relasi user-role
 model user_roles {
-  id      String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  user_id String @db.Uuid
-  role_id String @db.Uuid
+  id      String @id @default(uuid())
+  user_id String
+  role_id String
 
-  // Standard audit fields
   created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
   is_deleted Boolean  @default(false)
 
-  // Relations
   user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
   role roles @relation(fields: [role_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, role_id])
   @@index([user_id])
   @@index([role_id])
-  @@index([is_deleted])
-  @@schema("asisten")
 }
 
 // =============================================================================
-// BUSINESS OBJECT TABLES (4-5)
+// 2. WORKFLOW MANAGEMENT (3 tables)
 // =============================================================================
 
-/// Table 4: Paket - Main business package/project
-model paket {
-  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  kode             String   @unique @db.VarChar(50)
-  nama             String   @db.VarChar(500)
-  deskripsi        String?  @db.Text
-  tahun_anggaran   Int
-  nilai_pagu       Decimal  @db.Decimal(18, 2)
-  nilai_kontrak    Decimal? @db.Decimal(18, 2)
-  tanggal_mulai    DateTime?
-  tanggal_selesai  DateTime?
-  lokasi           String?  @db.VarChar(500)
-  kegiatan_id      String?  @db.Uuid
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  kegiatan          kegiatan?           @relation(fields: [kegiatan_id], references: [id])
-  creator           users?              @relation("PaketCreatedBy", fields: [created_by], references: [id])
-  updater           users?              @relation("PaketUpdatedBy", fields: [updated_by], references: [id])
-  workflow_instance workflow_instance?  // One paket has one workflow_instance
-  dokumen           dokumen[]
-  perjalanan_dinas  perjalanan_dinas[]
-  uang_persediaan   uang_persediaan[]
-  tambahan_up       tambahan_uang_persediaan[]
-  // Phase 3 relations
-  kak               kak[]
-  hps               hps[]
-  kontrak           kontrak[]
-  spmk              spmk[]
-  bast              bast[]
-  spp               spp[]
-  spm               spm[]
-  sp2d              sp2d[]
-
-  @@index([kode])
-  @@index([tahun_anggaran])
-  @@index([kegiatan_id])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 5: Kegiatan - Activity/Program grouping
-model kegiatan {
-  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  kode            String   @unique @db.VarChar(50)
-  nama            String   @db.VarChar(500)
-  deskripsi       String?  @db.Text
-  tahun_anggaran  Int
-  pagu_anggaran   Decimal  @db.Decimal(18, 2)
-  unit_kerja      String?  @db.VarChar(255)
-  program         String?  @db.VarChar(500)
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  creator users?  @relation("KegiatanCreatedBy", fields: [created_by], references: [id])
-  updater users?  @relation("KegiatanUpdatedBy", fields: [updated_by], references: [id])
-  paket   paket[]
-
-  @@index([kode])
-  @@index([tahun_anggaran])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-// =============================================================================
-// WORKFLOW ENGINE TABLES (6-9)
-// =============================================================================
-
-/// Table 6: Workflow Stage - Stage definitions in workflow
+/// Workflow Stage - Definisi tahapan workflow
 model workflow_stage {
-  id          String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  kode        WorkflowState @unique
-  nama        String        @db.VarChar(100)
-  deskripsi   String?       @db.Text
-  urutan      Int
-  is_initial  Boolean       @default(false)
-  is_final    Boolean       @default(false)
-  color       String?       @db.VarChar(20)
+  id              String  @id @default(uuid())
+  kode            String  @unique  // PERENCANAAN, PERSIAPAN, PEMILIHAN, KONTRAK, dll
+  nama            String
+  deskripsi       String?
+  urutan          Int     @default(0)
 
-  // Standard audit fields
+  // Role yang dapat approve di stage ini
+  required_role_id String?
+
+  // Konfigurasi
+  is_initial      Boolean @default(false)  // Stage awal
+  is_final        Boolean @default(false)  // Stage akhir
+  allow_reject    Boolean @default(true)
+  allow_revisi    Boolean @default(true)
+
+  // Aksi yang tersedia (JSON): [{kode, nama, next_stage_kode}]
+  available_actions String?
+
   created_at DateTime @default(now())
-  created_by String?  @db.Uuid
   updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
   is_deleted Boolean  @default(false)
 
   // Relations
-  current_instances    workflow_instance[]    @relation("CurrentStage")
-  transitions_from     workflow_transition[]  @relation("TransitionFrom")
-  transitions_to       workflow_transition[]  @relation("TransitionTo")
-  dokumen              dokumen[]
-  workflow_actions     workflow_action[]
+  required_role       roles?                @relation(fields: [required_role_id], references: [id])
+  workflow_instances  workflow_instance[]
+  transitions_from    workflow_transition[] @relation("FromStage")
+  transitions_to      workflow_transition[] @relation("ToStage")
 
   @@index([kode])
   @@index([urutan])
-  @@index([is_deleted])
-  @@schema("asisten")
 }
 
-/// Table 7: Workflow Instance - Active workflow for a paket
+/// Workflow Instance - Instance workflow untuk paket/dokumen
 model workflow_instance {
-  id               String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  paket_id         String    @unique @db.Uuid
-  current_stage_id String    @db.Uuid
-  started_at       DateTime  @default(now())
-  completed_at     DateTime?
-  is_active        Boolean   @default(true)
-  metadata         Json?
+  id              String    @id @default(uuid())
 
-  // Standard audit fields
+  // Target (polymorphic) - bisa paket, dokumen, atau perjalanan
+  entity_type     String    // paket, dokumen, perjalanan
+  entity_id       String
+
+  current_stage_id String
+
+  started_at      DateTime  @default(now())
+  completed_at    DateTime?
+  is_active       Boolean   @default(true)
+
   created_at DateTime @default(now())
-  created_by String?  @db.Uuid
+  created_by String?
   updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
   is_deleted Boolean  @default(false)
 
   // Relations
-  paket               paket                   @relation(fields: [paket_id], references: [id], onDelete: Cascade)
-  current_stage       workflow_stage          @relation("CurrentStage", fields: [current_stage_id], references: [id])
-  creator             users?                  @relation("WorkflowInstanceCreatedBy", fields: [created_by], references: [id])
-  updater             users?                  @relation("WorkflowInstanceUpdatedBy", fields: [updated_by], references: [id])
-  transitions         workflow_transition[]
-  perjalanan_dinas    perjalanan_dinas[]      // Phase 2: Link perjalanan to workflow
-  pertanggungjawaban  pertanggungjawaban[]    // Phase 2: Link SPJ to workflow
+  current_stage workflow_stage        @relation(fields: [current_stage_id], references: [id])
+  transitions   workflow_transition[]
 
-  @@index([paket_id])
+  @@unique([entity_type, entity_id])
+  @@index([entity_type, entity_id])
   @@index([current_stage_id])
   @@index([is_active])
-  @@index([is_deleted])
-  @@schema("asisten")
 }
 
-/// Table 8: Workflow Transition - Transition history/log
+/// Workflow Transition - Riwayat perpindahan stage
 model workflow_transition {
-  id                   String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  workflow_instance_id String    @db.Uuid
-  from_stage_id        String    @db.Uuid
-  to_stage_id          String    @db.Uuid
-  transitioned_at      DateTime  @default(now())
-  transitioned_by      String?   @db.Uuid
-  catatan              String?   @db.Text
-  metadata             Json?
+  id                    String    @id @default(uuid())
+  workflow_instance_id  String
 
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
+  from_stage_id         String
+  to_stage_id           String
+
+  // Siapa yang melakukan transisi
+  transitioned_by       String?
+
+  // Aksi yang dilakukan
+  action                String?   // APPROVE, REJECT, REVISI, SUBMIT
+  catatan               String?
+
+  transitioned_at       DateTime  @default(now())
 
   // Relations
   workflow_instance workflow_instance @relation(fields: [workflow_instance_id], references: [id], onDelete: Cascade)
-  from_stage        workflow_stage    @relation("TransitionFrom", fields: [from_stage_id], references: [id])
-  to_stage          workflow_stage    @relation("TransitionTo", fields: [to_stage_id], references: [id])
+  from_stage        workflow_stage    @relation("FromStage", fields: [from_stage_id], references: [id])
+  to_stage          workflow_stage    @relation("ToStage", fields: [to_stage_id], references: [id])
 
   @@index([workflow_instance_id])
   @@index([from_stage_id])
   @@index([to_stage_id])
   @@index([transitioned_at])
-  @@index([is_deleted])
-  @@schema("asisten")
 }
 
-/// Table 9: Workflow Action - Allowed actions per stage with role requirements (Phase 2)
-model workflow_action {
-  id                String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  workflow_stage_id String        @db.Uuid
-  action_code       String        @db.VarChar(50) // e.g., DRAFT_ST, APPROVE_ST, TERBIT_SPPD
-  action_name       String        @db.VarChar(100)
-  deskripsi         String?       @db.Text
-  required_role_id  String?       @db.Uuid  // Role required to perform this action
-  next_stage_id     String?       @db.Uuid  // Stage to transition to after action (if any)
-  is_approval       Boolean       @default(false)
-  urutan            Int           @default(0)
+// =============================================================================
+// 3. ORGANISASI & SDM (2 tables: satker, pegawai)
+// =============================================================================
 
-  // Standard audit fields
+/// Satker - Satuan Kerja
+model satker {
+  id           String  @id @default(uuid())
+  kode         String  @unique  // Kode Satker 6 digit
+  nama         String
+  nama_singkat String?
+  kementerian  String?
+  alamat       String?
+  kota         String?
+  provinsi     String?
+  telepon      String?
+  email        String?
+  is_active    Boolean @default(true)
+
   created_at DateTime @default(now())
-  created_by String?  @db.Uuid
   updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
   is_deleted Boolean  @default(false)
 
   // Relations
-  workflow_stage workflow_stage @relation(fields: [workflow_stage_id], references: [id])
-  required_role  roles?         @relation(fields: [required_role_id], references: [id])
+  pegawai  pegawai[]
+  anggaran anggaran[]
+  paket    paket[]
 
-  @@unique([workflow_stage_id, action_code])
-  @@index([workflow_stage_id])
-  @@index([action_code])
-  @@index([is_deleted])
-  @@schema("asisten")
+  @@index([kode])
+  @@index([is_active])
+}
+
+/// Pegawai - Data Pegawai
+model pegawai {
+  id              String    @id @default(uuid())
+  nip             String    @unique
+  nama            String
+  gelar_depan     String?
+  gelar_belakang  String?
+  tempat_lahir    String?
+  tanggal_lahir   DateTime?
+  jenis_kelamin   String?   // L/P
+
+  // Kepegawaian
+  golongan        String?   // III/a, IV/b, dll
+  pangkat         String?
+  jabatan         String?
+  jenis_jabatan   String?   // STRUKTURAL, FUNGSIONAL, PELAKSANA
+  satker_id       String?
+
+  // Sebagai Pejabat (JSON array): [{jenis, nomor_sk, tanggal_sk, tanggal_mulai, tanggal_selesai}]
+  jabatan_pejabat String?   // JSON: KPA, PPK, PPSPM, BENDAHARA, dll
+
+  telepon         String?
+  email           String?
+  status          String    @default("AKTIF")  // AKTIF, CUTI, PENSIUN
+  is_active       Boolean   @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  // Relations
+  satker          satker?           @relation(fields: [satker_id], references: [id])
+  user            users?
+  peserta_dinas   peserta_dinas[]
+  dokumen_pihak   dokumen_pihak[]   // Sebagai pihak di dokumen
+
+  @@index([nip])
+  @@index([satker_id])
+  @@index([golongan])
 }
 
 // =============================================================================
-// DOCUMENT ENGINE TABLES (10-12)
+// 4. ANGGARAN & KEGIATAN (2 tables: anggaran, paket)
 // =============================================================================
 
-/// Table 10: Dokumen - Main document entity
+/// Anggaran - DIPA dan Rincian (normalized)
+model anggaran {
+  id              String  @id @default(uuid())
+  satker_id       String
+  tahun           Int     // Tahun anggaran
+
+  // Struktur Kode
+  kode_program    String?
+  kode_kegiatan   String?
+  kode_output     String?
+  kode_komponen   String?
+  kode_akun       String  // MAK
+
+  // Uraian
+  nama_program    String?
+  nama_kegiatan   String?
+  nama_output     String?
+  nama_komponen   String?
+  nama_akun       String?
+
+  // Nilai
+  pagu            Decimal @default(0)
+  realisasi       Decimal @default(0)
+  sisa            Decimal @default(0)
+
+  // Detail rincian (JSON array): [{uraian, volume, satuan, harga, jumlah}]
+  rincian         String? // JSON
+
+  jenis_belanja   String? // PEGAWAI, BARANG, MODAL, BANSOS
+  sumber_dana     String? // RM, PNBP, PHLN
+  keterangan      String?
+  is_active       Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  // Relations
+  satker satker  @relation(fields: [satker_id], references: [id])
+  paket  paket[]
+
+  @@unique([satker_id, tahun, kode_akun])
+  @@index([satker_id])
+  @@index([tahun])
+  @@index([kode_akun])
+}
+
+/// Paket - Paket Pekerjaan/Pengadaan
+model paket {
+  id              String    @id @default(uuid())
+  kode            String    @unique
+  nama            String
+  deskripsi       String?
+  tahun           Int
+  satker_id       String?
+  anggaran_id     String?
+
+  // Nilai
+  pagu            Decimal   @default(0)
+  nilai_kontrak   Decimal?
+
+  // Periode
+  tanggal_mulai   DateTime?
+  tanggal_selesai DateTime?
+  lokasi          String?
+
+  // Jenis & Metode Pengadaan
+  jenis_pengadaan   String?  // BARANG, JASA_KONSULTANSI, JASA_LAINNYA, KONSTRUKSI
+  metode_pengadaan  String?  // LANGSUNG, PENUNJUKAN, TENDER, SELEKSI, EPURCHASING
+
+  // Status workflow
+  status          String    @default("PERENCANAAN")  // PERENCANAAN, PERSIAPAN, PEMILIHAN, KONTRAK, PELAKSANAAN, SERAH_TERIMA, PEMBAYARAN, SELESAI
+
+  created_at DateTime @default(now())
+  created_by String?
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  // Relations
+  satker          satker?           @relation(fields: [satker_id], references: [id])
+  anggaran        anggaran?         @relation(fields: [anggaran_id], references: [id])
+  dokumen         dokumen[]
+  permintaan      permintaan[]
+  perjalanan      perjalanan_dinas[]
+  transaksi       transaksi_keuangan[]
+
+  @@index([kode])
+  @@index([tahun])
+  @@index([satker_id])
+  @@index([status])
+}
+
+// =============================================================================
+// 5. DOKUMEN UNIVERSAL (3 tables: dokumen, dokumen_versi, dokumen_pihak)
+// =============================================================================
+
+/// Dokumen - Semua jenis dokumen (generic)
 model dokumen {
-  id                String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor             String      @db.VarChar(100)
-  judul             String      @db.VarChar(500)
-  tipe              DokumenTipe
-  deskripsi         String?     @db.Text
-  paket_id          String      @db.Uuid
-  workflow_stage_id String      @db.Uuid
-  tanggal_dokumen   DateTime
-  current_version   Int         @default(1)
-  metadata          Json?
+  id              String    @id @default(uuid())
+  nomor           String
+  paket_id        String?
 
-  // Standard audit fields
+  // Link ke perjalanan dinas (untuk SURAT_TUGAS, SPPD)
+  perjalanan_id   String?
+
+  // Tipe dokumen (discriminator)
+  tipe            String    // Lihat enum DokumenTipe di bawah
+
+  // Data umum
+  judul           String?
+  tanggal         DateTime  @default(now())
+  status          String    @default("DRAFT")  // DRAFT, PROSES, FINAL, BATAL
+
+  // Nilai (jika ada)
+  nilai           Decimal?
+  nilai_ppn       Decimal?
+  nilai_pph       Decimal?
+  nilai_final     Decimal?
+
+  // Metadata spesifik per tipe (JSON)
+  // Contoh KAK: {latar_belakang, maksud_tujuan, ruang_lingkup, spesifikasi}
+  // Contoh Kontrak: {nama_penyedia, alamat, npwp, jangka_waktu}
+  // Contoh SPP/SPM/SP2D: {jenis, rekening, bank}
+  // Contoh Surat Tugas: {perihal, dasar}
+  // Contoh SPPD: {instansi, mata_anggaran}
+  metadata        String?   // JSON
+
+  // File
+  file_path       String?
+  file_name       String?
+
+  keterangan      String?
+
   created_at DateTime @default(now())
-  created_by String?  @db.Uuid
+  created_by String?
   updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
   is_deleted Boolean  @default(false)
 
   // Relations
-  paket          paket           @relation(fields: [paket_id], references: [id], onDelete: Cascade)
-  workflow_stage workflow_stage  @relation(fields: [workflow_stage_id], references: [id])
-  creator        users?          @relation("DokumenCreatedBy", fields: [created_by], references: [id])
-  updater        users?          @relation("DokumenUpdatedBy", fields: [updated_by], references: [id])
-  versi          dokumen_versi[]
-  relasi_parent  dokumen_relasi[] @relation("DokumenParent")
-  relasi_child   dokumen_relasi[] @relation("DokumenChild")
-  approval_logs  approval_log[]
-  // Phase 2: Linkage to SPPD entities
-  surat_tugas    surat_tugas[]
-  sppd           sppd[]
-  kuitansi       kuitansi[]
-  // Phase 3: Linkage to Procurement entities
-  kak            kak[]
-  hps            hps[]
-  rancangan_kontrak rancangan_kontrak[]
-  kontrak        kontrak[]
-  ssuk           ssuk[]
-  sskk           sskk[]
-  spmk           spmk[]
-  adendum_kontrak adendum_kontrak[]
-  ba_kemajuan    ba_kemajuan[]
-  bahp           bahp[]
-  bast           bast[]
-  // Phase 3: Linkage to Payment entities
-  spp            spp[]
-  spm            spm[]
-  sp2d           sp2d[]
+  paket         paket?            @relation(fields: [paket_id], references: [id])
+  perjalanan    perjalanan_dinas? @relation(fields: [perjalanan_id], references: [id])
+  versi         dokumen_versi[]
+  pihak         dokumen_pihak[]   // Pihak terkait dengan proper FK
 
-  @@unique([nomor, paket_id])
+  @@index([nomor])
   @@index([paket_id])
-  @@index([workflow_stage_id])
+  @@index([perjalanan_id])
   @@index([tipe])
-  @@index([tanggal_dokumen])
-  @@index([is_deleted])
-  @@schema("asisten")
+  @@index([status])
+  @@index([tanggal])
 }
 
-/// Table 11: Dokumen Versi - Document version history with forensic audit trail
-model dokumen_versi {
-  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  dokumen_id   String   @db.Uuid
-  versi        Int
-  file_path    String   @db.VarChar(1000)
-  file_name    String   @db.VarChar(255)
-  file_size    BigInt?
-  mime_type    String?  @db.VarChar(100)
-  checksum     String?  @db.VarChar(64)
-  catatan      String?  @db.Text
-  is_current   Boolean  @default(false)
-  // Phase 3: Manual Signed Document Upload (BASAH_SCAN only)
-  signed_by_name   String?       @db.VarChar(255)
-  signed_by_role   String?       @db.VarChar(255)
-  signed_date      DateTime?
-  signed_method    SignedMethod?
-  signed_file_path String?       @db.VarChar(1000)
-  signed_file_hash String?       @db.VarChar(64)
-  // Phase 4: Forensic Archive & Multi-Year
-  tahun_anggaran        Int?                  // Fiscal year for partitioning
-  previous_version_hash String?              @db.VarChar(64)  // Hash chain link to previous version
-  version_status        DokumenVersiStatus   @default(DRAFT)  // FINAL = immutable
-  finalized_at          DateTime?            // Timestamp when status became FINAL
-  archive_path          String?              @db.VarChar(1000) // WORM archive location
+// Tipe Dokumen (untuk referensi):
+// - PERENCANAAN: KAK, HPS, RAB
+// - PEMILIHAN: UNDANGAN, PENAWARAN, EVALUASI, NEGOSIASI, PENETAPAN
+// - KONTRAK: SPPBJ, KONTRAK, SPMK, ADENDUM
+// - PELAKSANAAN: BA_KEMAJUAN, LAPORAN
+// - SERAH_TERIMA: BAHP, BAST_SEMENTARA, BAST_AKHIR
+// - PEMBAYARAN: SPP, SPM, SP2D, KUITANSI
+// - PERJALANAN: SURAT_TUGAS, SPPD
+// - LAINNYA: SURAT, MEMO, NODIN
 
-  // Standard audit fields
+/// Dokumen Versi - Riwayat versi dokumen
+model dokumen_versi {
+  id          String    @id @default(uuid())
+  dokumen_id  String
+  versi       Int
+
+  file_path   String
+  file_name   String
+  file_size   BigInt?
+  mime_type   String?
+  checksum    String?   // SHA256
+
+  // Tanda tangan (jika ada)
+  signed_by   String?
+  signed_date DateTime?
+  signed_file String?
+
+  catatan     String?
+  is_current  Boolean   @default(false)
+
   created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
+  created_by String?
   is_deleted Boolean  @default(false)
 
-  // Relations
-  dokumen       dokumen        @relation(fields: [dokumen_id], references: [id], onDelete: Cascade)
-  creator       users?         @relation("DokumenVersiCreatedBy", fields: [created_by], references: [id])
-  approval_logs approval_log[] @relation("ApprovalLogDokumenVersi")  // Phase 3: Link approval to version
+  dokumen dokumen @relation(fields: [dokumen_id], references: [id], onDelete: Cascade)
 
   @@unique([dokumen_id, versi])
   @@index([dokumen_id])
   @@index([is_current])
-  @@index([signed_file_hash])
-  @@index([is_deleted])
-  @@index([tahun_anggaran])
-  @@index([version_status])
-  @@index([previous_version_hash])
-  @@schema("asisten")
 }
 
-/// Table 12: Dokumen Relasi - Document relationships
-model dokumen_relasi {
-  id                String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  parent_dokumen_id String            @db.Uuid
-  child_dokumen_id  String            @db.Uuid
-  tipe_relasi       DokumenRelasiTipe
-  catatan           String?           @db.Text
-  urutan            Int?
+/// Dokumen Pihak - Relasi dokumen ke pegawai dengan proper FK
+model dokumen_pihak {
+  id          String    @id @default(uuid())
+  dokumen_id  String
+  pegawai_id  String
 
-  // Standard audit fields
+  // Peran dalam dokumen
+  peran       String    // PEMBUAT, PEMERIKSA, PENANDATANGAN, PENERIMA, PENYETUJU
+
+  // Jabatan saat menandatangani (snapshot)
+  jabatan     String?
+
+  // Urutan (jika ada beberapa penandatangan)
+  urutan      Int       @default(0)
+
+  // Status tanda tangan
+  signed_at   DateTime?
+  is_signed   Boolean   @default(false)
+
+  catatan     String?
+
   created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
   is_deleted Boolean  @default(false)
 
   // Relations
-  parent_dokumen dokumen @relation("DokumenParent", fields: [parent_dokumen_id], references: [id], onDelete: Cascade)
-  child_dokumen  dokumen @relation("DokumenChild", fields: [child_dokumen_id], references: [id], onDelete: Cascade)
+  dokumen dokumen @relation(fields: [dokumen_id], references: [id], onDelete: Cascade)
+  pegawai pegawai @relation(fields: [pegawai_id], references: [id])
 
-  @@unique([parent_dokumen_id, child_dokumen_id, tipe_relasi])
-  @@index([parent_dokumen_id])
-  @@index([child_dokumen_id])
-  @@index([tipe_relasi])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-// =============================================================================
-// APPROVAL & AUDIT TABLES (13-14)
-// =============================================================================
-
-/// Table 13: Approval Log - Approval history
-model approval_log {
-  id                String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  dokumen_id        String         @db.Uuid
-  dokumen_versi_id  String?        @db.Uuid  // Phase 3: Reference specific version
-  role_id           String         @db.Uuid
-  approver_id       String         @db.Uuid
-  status            ApprovalStatus
-  catatan           String?        @db.Text
-  approved_at       DateTime?
-  metadata          Json?
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  dokumen       dokumen        @relation(fields: [dokumen_id], references: [id], onDelete: Cascade)
-  dokumen_versi dokumen_versi? @relation("ApprovalLogDokumenVersi", fields: [dokumen_versi_id], references: [id])
-  role          roles          @relation(fields: [role_id], references: [id])
-  approver      users          @relation("ApprovalLogApprover", fields: [approver_id], references: [id])
-
+  @@unique([dokumen_id, pegawai_id, peran])
   @@index([dokumen_id])
-  @@index([dokumen_versi_id])
-  @@index([role_id])
-  @@index([approver_id])
-  @@index([status])
-  @@index([approved_at])
-  @@index([is_deleted])
-  @@schema("asisten")
+  @@index([pegawai_id])
+  @@index([peran])
 }
 
-/// Table 14: Audit Log - Immutable audit trail
-model audit_log {
-  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  table_name    String   @db.VarChar(100)
-  record_id     String   @db.Uuid
-  action        String   @db.VarChar(20)
-  old_values    Json?
-  new_values    Json?
-  actor_id      String?  @db.Uuid
-  ip_address    String?  @db.VarChar(45)
-  user_agent    String?  @db.VarChar(500)
+// =============================================================================
+// 6. PERMINTAAN & SURVEY HARGA (3 tables: permintaan, item_permintaan, survey_harga)
+// =============================================================================
 
-  // Note: This table is IMMUTABLE - only INSERT allowed
+/// Permintaan - Lembar permintaan barang/jasa
+model permintaan {
+  id              String    @id @default(uuid())
+  nomor           String    @unique
+  tanggal         DateTime  @default(now())
+  paket_id        String?
+
+  // Pemohon
+  pemohon_id      String?   // pegawai_id
+  unit_pemohon    String?
+
+  perihal         String
+  tujuan          String?
+  tanggal_butuh   DateTime?
+
+  // Status
+  status          String    @default("DRAFT")  // DRAFT, DIAJUKAN, DISETUJUI, DITOLAK, PROSES, SELESAI
+
+  // Approval
+  penyetuju_id    String?
+  tanggal_setuju  DateTime?
+  catatan_setuju  String?
+
+  // Total nilai
+  total_perkiraan Decimal   @default(0)
+  total_hps       Decimal   @default(0)  // Rata-rata survey
+  total_negosiasi Decimal   @default(0)
+  total_kontrak   Decimal   @default(0)
+  total_ppn       Decimal   @default(0)
+  total_final     Decimal   @default(0)
+
+  keterangan      String?
+
   created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @default(now())
-  updated_by String?  @db.Uuid
+  created_by String?
+  updated_at DateTime @updatedAt
   is_deleted Boolean  @default(false)
 
   // Relations
-  actor users? @relation("AuditLogActor", fields: [actor_id], references: [id])
+  paket paket?            @relation(fields: [paket_id], references: [id])
+  items item_permintaan[]
 
-  @@index([table_name])
-  @@index([record_id])
-  @@index([action])
-  @@index([actor_id])
-  @@index([created_at])
-  @@schema("asisten")
+  @@index([nomor])
+  @@index([paket_id])
+  @@index([status])
+}
+
+/// Item Permintaan - Detail barang/jasa
+model item_permintaan {
+  id              String  @id @default(uuid())
+  permintaan_id   String
+  urut            Int
+
+  // Barang/Jasa
+  jenis           String  @default("BARANG")  // BARANG, JASA
+  nama            String
+  spesifikasi     String?
+  merk            String?
+
+  // Quantity
+  volume          Decimal @default(1)
+  satuan          String  @default("Unit")
+
+  // Harga bertahap
+  harga_perkiraan Decimal @default(0)
+  harga_hps       Decimal @default(0)  // Dari rata-rata survey
+  harga_negosiasi Decimal @default(0)
+  harga_kontrak   Decimal @default(0)
+  ppn_persen      Decimal @default(11)
+  ppn_nominal     Decimal @default(0)
+  harga_final     Decimal @default(0)  // Kontrak + PPN
+
+  // Total (harga x volume)
+  total_perkiraan Decimal @default(0)
+  total_hps       Decimal @default(0)
+  total_negosiasi Decimal @default(0)
+  total_kontrak   Decimal @default(0)
+  total_ppn       Decimal @default(0)
+  total_final     Decimal @default(0)
+
+  keterangan      String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  // Relations
+  permintaan   permintaan     @relation(fields: [permintaan_id], references: [id], onDelete: Cascade)
+  survey_harga survey_harga[]
+
+  @@index([permintaan_id])
+}
+
+/// Survey Harga - Data survey (min 3)
+model survey_harga {
+  id              String   @id @default(uuid())
+  item_id         String
+  urut            Int      // 1, 2, 3, ...
+
+  nama_sumber     String   // Nama toko/supplier
+  alamat          String?
+  kontak          String?
+
+  harga           Decimal  @default(0)
+  tanggal         DateTime @default(now())
+
+  bukti_path      String?  // File bukti
+  keterangan      String?
+  is_valid        Boolean  @default(true)
+
+  created_at DateTime @default(now())
+  is_deleted Boolean  @default(false)
+
+  item item_permintaan @relation(fields: [item_id], references: [id], onDelete: Cascade)
+
+  @@index([item_id])
 }
 
 // =============================================================================
-// SPPD CORE TABLES (15-18) - Phase 2 Enhanced
+// 7. PERJALANAN DINAS (2 tables: perjalanan_dinas, peserta_dinas)
 // =============================================================================
 
-/// Table 15: Perjalanan Dinas - Business trip (Phase 2 Enhanced)
+/// Perjalanan Dinas
 model perjalanan_dinas {
-  id                   String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor                String           @unique @db.VarChar(100)
-  paket_id             String?          @db.Uuid
-  workflow_instance_id String?          @db.Uuid  // Phase 2: Link to workflow
-  maksud_perjalanan    String           @db.Text
-  kota_asal            String           @db.VarChar(255)
-  kota_tujuan          String           @db.VarChar(255)
-  tanggal_berangkat    DateTime
-  tanggal_kembali      DateTime
-  lama_hari            Int
-  status               PerjalananStatus @default(DRAFT)
-  catatan              String?          @db.Text
-  // Phase 2: Financial summary
-  total_biaya_estimasi Decimal?         @db.Decimal(18, 2)
-  total_biaya_realisasi Decimal?        @db.Decimal(18, 2)
+  id              String    @id @default(uuid())
+  nomor           String    @unique
+  paket_id        String?
 
-  // Standard audit fields
+  maksud          String
+  kota_asal       String
+  kota_tujuan     String
+  tanggal_pergi   DateTime
+  tanggal_pulang  DateTime
+  lama_hari       Int
+
+  // Biaya
+  estimasi_biaya  Decimal?
+  realisasi_biaya Decimal?
+
+  // Status
+  status          String    @default("DRAFT")  // DRAFT, DIAJUKAN, DISETUJUI, BERLANGSUNG, SELESAI, BATAL
+
+  catatan         String?
+
   created_at DateTime @default(now())
-  created_by String?  @db.Uuid
+  created_by String?
   updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
   is_deleted Boolean  @default(false)
 
   // Relations
-  paket              paket?               @relation(fields: [paket_id], references: [id])
-  workflow_instance  workflow_instance?   @relation(fields: [workflow_instance_id], references: [id])
-  creator            users?               @relation("PerjalananCreatedBy", fields: [created_by], references: [id])
-  updater            users?               @relation("PerjalananUpdatedBy", fields: [updated_by], references: [id])
-  peserta            peserta_perjalanan[]
-  surat_tugas        surat_tugas?         // Phase 2: One perjalanan must have exactly one surat_tugas
-  sppd               sppd[]
-  kuitansi           kuitansi[]           // Phase 2: Link kuitansi to perjalanan
-  pertanggungjawaban pertanggungjawaban[]
+  paket    paket?          @relation(fields: [paket_id], references: [id])
+  peserta  peserta_dinas[]
+  dokumen  dokumen[]       // Surat Tugas, SPPD terkait
 
+  @@index([nomor])
   @@index([paket_id])
-  @@index([workflow_instance_id])
-  @@index([tanggal_berangkat])
-  @@index([tanggal_kembali])
   @@index([status])
-  @@index([is_deleted])
-  @@schema("asisten")
 }
 
-/// Table 16: Peserta Perjalanan - Trip participants
-model peserta_perjalanan {
-  id                  String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  perjalanan_dinas_id String   @db.Uuid
-  user_id             String   @db.Uuid
-  tingkat_biaya       String?  @db.VarChar(50)
-  golongan            String?  @db.VarChar(20)
-  jabatan_perjalanan  String?  @db.VarChar(255)
-  is_ketua            Boolean  @default(false)
-  catatan             String?  @db.Text
-  // Phase 2: Individual cost tracking
-  uang_harian         Decimal? @db.Decimal(18, 2)
-  biaya_transport     Decimal? @db.Decimal(18, 2)
-  biaya_penginapan    Decimal? @db.Decimal(18, 2)
-  biaya_lainnya       Decimal? @db.Decimal(18, 2)
+/// Peserta Perjalanan Dinas
+model peserta_dinas {
+  id              String  @id @default(uuid())
+  perjalanan_id   String
+  pegawai_id      String
 
-  // Standard audit fields
+  tingkat_biaya   String?
+  is_ketua        Boolean @default(false)
+
+  // Biaya per orang
+  uang_harian     Decimal?
+  transport       Decimal?
+  penginapan      Decimal?
+  lainnya         Decimal?
+
+  catatan         String?
+
   created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
   is_deleted Boolean  @default(false)
 
-  // Relations
-  perjalanan_dinas perjalanan_dinas @relation(fields: [perjalanan_dinas_id], references: [id], onDelete: Cascade)
-  user             users            @relation(fields: [user_id], references: [id])
+  perjalanan perjalanan_dinas @relation(fields: [perjalanan_id], references: [id], onDelete: Cascade)
+  pegawai    pegawai          @relation(fields: [pegawai_id], references: [id])
 
-  @@unique([perjalanan_dinas_id, user_id])
-  @@index([perjalanan_dinas_id])
-  @@index([user_id])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 17: Surat Tugas - Assignment letter (Phase 2 Enhanced)
-model surat_tugas {
-  id                   String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor                String           @unique @db.VarChar(100)
-  perjalanan_dinas_id  String           @unique @db.Uuid  // Phase 2: UNIQUE - One perjalanan has exactly one ST
-  dokumen_id           String?          @db.Uuid  // Phase 2: Link to dokumen engine
-  tanggal_surat        DateTime
-  perihal              String           @db.Text
-  dasar                String?          @db.Text
-  penanda_tangan_id    String?          @db.Uuid
-  jabatan_penanda      String?          @db.VarChar(255)
-  file_path            String?          @db.VarChar(1000)
-  status               SuratTugasStatus @default(DRAFT)  // Phase 2
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  perjalanan_dinas perjalanan_dinas @relation(fields: [perjalanan_dinas_id], references: [id], onDelete: Cascade)
-  dokumen          dokumen?         @relation(fields: [dokumen_id], references: [id])
-  penanda_tangan   users?           @relation("SuratTugasPenandaTangan", fields: [penanda_tangan_id], references: [id])
-  creator          users?           @relation("SuratTugasCreatedBy", fields: [created_by], references: [id])
-  updater          users?           @relation("SuratTugasUpdatedBy", fields: [updated_by], references: [id])
-
-  @@index([perjalanan_dinas_id])
-  @@index([dokumen_id])
-  @@index([tanggal_surat])
-  @@index([status])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 18: SPPD - Surat Perintah Perjalanan Dinas (Phase 2 Enhanced)
-model sppd {
-  id                  String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor               String     @unique @db.VarChar(100)
-  perjalanan_dinas_id String     @db.Uuid
-  dokumen_id          String?    @db.Uuid  // Phase 2: Link to dokumen engine
-  tanggal_sppd        DateTime
-  pejabat_pemberi_id  String?    @db.Uuid
-  jabatan_pemberi     String?    @db.VarChar(255)
-  instansi            String?    @db.VarChar(255)
-  mata_anggaran       String?    @db.VarChar(100)
-  keterangan          String?    @db.Text
-  file_path           String?    @db.VarChar(1000)
-  status              SppdStatus @default(DRAFT)  // Phase 2
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  perjalanan_dinas perjalanan_dinas @relation(fields: [perjalanan_dinas_id], references: [id], onDelete: Cascade)
-  dokumen          dokumen?         @relation(fields: [dokumen_id], references: [id])
-  pejabat_pemberi  users?           @relation("SppdPejabat", fields: [pejabat_pemberi_id], references: [id])
-  creator          users?           @relation("SppdCreatedBy", fields: [created_by], references: [id])
-  updater          users?           @relation("SppdUpdatedBy", fields: [updated_by], references: [id])
-
-  @@index([perjalanan_dinas_id])
-  @@index([dokumen_id])
-  @@index([tanggal_sppd])
-  @@index([status])
-  @@index([is_deleted])
-  @@schema("asisten")
+  @@unique([perjalanan_id, pegawai_id])
+  @@index([perjalanan_id])
+  @@index([pegawai_id])
 }
 
 // =============================================================================
-// FINANCE CORE TABLES (19-23) - Phase 2 Enhanced
+// 8. TRANSAKSI KEUANGAN (1 table: transaksi_keuangan)
 // =============================================================================
 
-/// Table 19: Uang Persediaan - Advance payment fund (Phase 2 Enhanced)
-model uang_persediaan {
-  id              String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor           String           @unique @db.VarChar(100)
-  paket_id        String?          @db.Uuid
-  tanggal         DateTime
-  nilai           Decimal          @db.Decimal(18, 2)
-  sisa            Decimal          @db.Decimal(18, 2)
-  bendahara_id    String?          @db.Uuid
-  keterangan      String?          @db.Text
-  status          PembayaranStatus @default(DRAFT)
-  treasury_type   TreasuryType     @default(UP)  // Phase 2
+/// Transaksi Keuangan - UP, TUP, Kuitansi, Pembayaran (unified)
+model transaksi_keuangan {
+  id              String    @id @default(uuid())
+  nomor           String    @unique
+  paket_id        String?
 
-  // Standard audit fields
+  // Tipe transaksi
+  tipe            String    // UP, TUP, KUITANSI_UM, KUITANSI_RAMPUNG, OPERASIONAL
+
+  tanggal         DateTime  @default(now())
+
+  // Nilai
+  nilai           Decimal   @default(0)
+  sisa            Decimal   @default(0)
+
+  // Untuk Kuitansi
+  uraian          String?
+  penerima        String?
+
+  // Referensi (untuk kuitansi rampung ke UM, atau TUP ke UP)
+  referensi_id    String?
+
+  // Status
+  status          String    @default("DRAFT")  // DRAFT, DIAJUKAN, VERIFIKASI, BAYAR, SELESAI, TOLAK
+
+  // Metadata tambahan (JSON)
+  metadata        String?
+
+  keterangan      String?
+
   created_at DateTime @default(now())
-  created_by String?  @db.Uuid
+  created_by String?
   updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
   is_deleted Boolean  @default(false)
 
   // Relations
-  paket              paket?               @relation(fields: [paket_id], references: [id])
-  bendahara          users?               @relation("UPBendahara", fields: [bendahara_id], references: [id])
-  creator            users?               @relation("UPCreatedBy", fields: [created_by], references: [id])
-  updater            users?               @relation("UPUpdatedBy", fields: [updated_by], references: [id])
-  kuitansi           kuitansi[]
-  pertanggungjawaban pertanggungjawaban[]
-  tambahan_up        tambahan_uang_persediaan[]  // Phase 2: Link TUP to base UP
+  paket           paket?               @relation(fields: [paket_id], references: [id])
+  referensi       transaksi_keuangan?  @relation("TransaksiRef", fields: [referensi_id], references: [id])
+  referensi_child transaksi_keuangan[] @relation("TransaksiRef")
 
+  @@index([nomor])
   @@index([paket_id])
-  @@index([tanggal])
-  @@index([status])
-  @@index([treasury_type])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 20: Tambahan Uang Persediaan (TUP) - Phase 2 New Table
-model tambahan_uang_persediaan {
-  id                  String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor               String           @unique @db.VarChar(100)
-  uang_persediaan_id  String           @db.Uuid  // Reference to base UP
-  paket_id            String?          @db.Uuid
-  tanggal             DateTime
-  nilai               Decimal          @db.Decimal(18, 2)
-  sisa                Decimal          @db.Decimal(18, 2)
-  alasan              String           @db.Text  // Justification for additional funds
-  bendahara_id        String?          @db.Uuid
-  keterangan          String?          @db.Text
-  status              PembayaranStatus @default(DRAFT)
-  batas_waktu         DateTime?        // Deadline for TUP usage
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  uang_persediaan    uang_persediaan      @relation(fields: [uang_persediaan_id], references: [id])
-  paket              paket?               @relation(fields: [paket_id], references: [id])
-  bendahara          users?               @relation("TUPBendahara", fields: [bendahara_id], references: [id])
-  creator            users?               @relation("TUPCreatedBy", fields: [created_by], references: [id])
-  updater            users?               @relation("TUPUpdatedBy", fields: [updated_by], references: [id])
-  kuitansi           kuitansi[]
-  pertanggungjawaban pertanggungjawaban[]
-
-  @@index([uang_persediaan_id])
-  @@index([paket_id])
-  @@index([tanggal])
-  @@index([status])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 21: Kuitansi - Receipt/Invoice (Phase 2 Enhanced)
-model kuitansi {
-  id                  String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor               String           @unique @db.VarChar(100)
-  uang_persediaan_id  String?          @db.Uuid
-  tup_id              String?          @db.Uuid  // Phase 2: Link to TUP
-  perjalanan_dinas_id String?          @db.Uuid  // Phase 2: Link to travel
-  dokumen_id          String?          @db.Uuid  // Phase 2: Link to dokumen engine
-  kuitansi_um_id      String?          @db.Uuid  // Phase 2: For RAMPUNG, reference to UANG_MUKA
-  tanggal             DateTime
-  tipe                KuitansiTipe     @default(OPERASIONAL)  // Phase 2
-  uraian              String           @db.Text
-  nilai               Decimal          @db.Decimal(18, 2)
-  nilai_um            Decimal?         @db.Decimal(18, 2)  // Phase 2: Uang Muka amount (for reconciliation)
-  nilai_realisasi     Decimal?         @db.Decimal(18, 2)  // Phase 2: Actual spent amount
-  selisih             Decimal?         @db.Decimal(18, 2)  // Phase 2: Difference (positive=return, negative=additional)
-  penerima            String           @db.VarChar(255)
-  jenis_belanja       String?          @db.VarChar(100)
-  bukti_pendukung     String?          @db.VarChar(1000)
-  status              PembayaranStatus @default(DRAFT)
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  uang_persediaan     uang_persediaan?          @relation(fields: [uang_persediaan_id], references: [id])
-  tup                 tambahan_uang_persediaan? @relation(fields: [tup_id], references: [id])
-  perjalanan_dinas    perjalanan_dinas?         @relation(fields: [perjalanan_dinas_id], references: [id])
-  dokumen             dokumen?                  @relation(fields: [dokumen_id], references: [id])
-  kuitansi_um         kuitansi?                 @relation("KuitansiUMRef", fields: [kuitansi_um_id], references: [id])
-  kuitansi_rampung    kuitansi[]                @relation("KuitansiUMRef")  // Phase 2: Reverse relation
-  creator             users?                    @relation("KuitansiCreatedBy", fields: [created_by], references: [id])
-  updater             users?                    @relation("KuitansiUpdatedBy", fields: [updated_by], references: [id])
-  pertanggungjawaban  pertanggungjawaban[]
-
-  @@index([uang_persediaan_id])
-  @@index([tup_id])
-  @@index([perjalanan_dinas_id])
-  @@index([dokumen_id])
-  @@index([kuitansi_um_id])
-  @@index([tanggal])
   @@index([tipe])
   @@index([status])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 22: Pertanggungjawaban - Accountability/SPJ (Phase 2 Enhanced)
-model pertanggungjawaban {
-  id                   String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor                String           @unique @db.VarChar(100)
-  uang_persediaan_id   String?          @db.Uuid
-  tup_id               String?          @db.Uuid  // Phase 2: Link to TUP
-  perjalanan_dinas_id  String?          @db.Uuid
-  kuitansi_id          String?          @db.Uuid
-  workflow_instance_id String?          @db.Uuid  // Phase 2: Link to workflow
-  tanggal              DateTime
-  jenis                String           @db.VarChar(100)
-  total_nilai          Decimal          @db.Decimal(18, 2)
-  total_um             Decimal?         @db.Decimal(18, 2)  // Phase 2: Total uang muka
-  total_realisasi      Decimal?         @db.Decimal(18, 2)  // Phase 2: Total realization
-  sisa_lebih           Decimal?         @db.Decimal(18, 2)  // Phase 2: Excess to return
-  sisa_kurang          Decimal?         @db.Decimal(18, 2)  // Phase 2: Additional needed
-  status               SPJStatus        @default(DRAFT)     // Phase 2: Enhanced status
-  verifikator_id       String?          @db.Uuid
-  tanggal_verifikasi   DateTime?
-  catatan_verifikasi   String?          @db.Text
-  pengesah_id          String?          @db.Uuid  // Phase 2: Final approver (PPK/Bendahara)
-  tanggal_pengesahan   DateTime?        // Phase 2
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  uang_persediaan   uang_persediaan?          @relation(fields: [uang_persediaan_id], references: [id])
-  tup               tambahan_uang_persediaan? @relation(fields: [tup_id], references: [id])
-  perjalanan_dinas  perjalanan_dinas?         @relation(fields: [perjalanan_dinas_id], references: [id])
-  kuitansi          kuitansi?                 @relation(fields: [kuitansi_id], references: [id])
-  workflow_instance workflow_instance?        @relation(fields: [workflow_instance_id], references: [id])
-  verifikator       users?                    @relation("SPJVerifikator", fields: [verifikator_id], references: [id])
-  pengesah          users?                    @relation("SPJPengesah", fields: [pengesah_id], references: [id])
-  creator           users?                    @relation("SPJCreatedBy", fields: [created_by], references: [id])
-  updater           users?                    @relation("SPJUpdatedBy", fields: [updated_by], references: [id])
-
-  @@index([uang_persediaan_id])
-  @@index([tup_id])
-  @@index([perjalanan_dinas_id])
-  @@index([kuitansi_id])
-  @@index([workflow_instance_id])
-  @@index([tanggal])
-  @@index([status])
-  @@index([is_deleted])
-  @@schema("asisten")
 }
 
 // =============================================================================
-// PHASE 3: PROCUREMENT CONTRACT TABLES (23-33)
+// 9. AUDIT & LOG (2 tables: approval_log, audit_log)
 // =============================================================================
 
-/// Table 23: KAK - Kerangka Acuan Kerja (Terms of Reference)
-model kak {
-  id                String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor             String         @unique @db.VarChar(100)
-  paket_id          String         @db.Uuid
-  dokumen_id        String?        @db.Uuid
-  judul             String         @db.VarChar(500)
-  latar_belakang    String?        @db.Text
-  maksud_tujuan     String?        @db.Text
-  sasaran           String?        @db.Text
-  ruang_lingkup     String?        @db.Text
-  keluaran          String?        @db.Text
-  jangka_waktu      Int?           // Duration in days
-  spesifikasi       Json?          // Technical specifications
-  jenis_pengadaan   JenisPengadaan?
-  metode_pengadaan  MetodePengadaan?
-  nilai_pagu        Decimal        @db.Decimal(18, 2)
-  ppk_id            String?        @db.Uuid
-  status            KAKStatus      @default(DRAFT)
-  tanggal_kak       DateTime
+/// Approval Log - Riwayat persetujuan
+model approval_log {
+  id          String    @id @default(uuid())
 
-  // Standard audit fields
+  // Target approval (polymorphic)
+  entity_type String    // dokumen, permintaan, perjalanan, transaksi
+  entity_id   String
+
+  // Approver
+  approver_id String?
+  role_code   String?
+
+  // Status
+  status      String    // PENDING, APPROVED, REJECTED, REVISI
+  catatan     String?
+
+  approved_at DateTime?
+
   created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
 
-  // Relations
-  paket   paket    @relation(fields: [paket_id], references: [id], onDelete: Cascade)
-  dokumen dokumen? @relation(fields: [dokumen_id], references: [id])
-  ppk     users?   @relation("KAKPejabatPPK", fields: [ppk_id], references: [id])
-  creator users?   @relation("KAKCreatedBy", fields: [created_by], references: [id])
-  updater users?   @relation("KAKUpdatedBy", fields: [updated_by], references: [id])
-  hps     hps[]
-
-  @@index([paket_id])
-  @@index([dokumen_id])
+  @@index([entity_type, entity_id])
+  @@index([approver_id])
   @@index([status])
-  @@index([tanggal_kak])
-  @@index([is_deleted])
-  @@schema("asisten")
 }
 
-/// Table 24: HPS - Harga Perkiraan Sendiri (Owner's Estimate)
-model hps {
-  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor           String         @unique @db.VarChar(100)
-  paket_id        String         @db.Uuid
-  kak_id          String         @db.Uuid
-  dokumen_id      String?        @db.Uuid
-  tanggal_hps     DateTime
-  nilai_hps       Decimal        @db.Decimal(18, 2)
-  komponen_biaya  Json?          // Breakdown of cost components
-  dasar_penyusun  String?        @db.Text  // Basis for estimation
-  penyusun_id     String?        @db.Uuid
-  status          HPSStatus      @default(DRAFT)
-  catatan         String?        @db.Text
+/// Audit Log - Jejak audit (immutable)
+model audit_log {
+  id          String   @id @default(uuid())
 
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
+  table_name  String
+  record_id   String
+  action      String   // INSERT, UPDATE, DELETE
 
-  // Relations
-  paket            paket              @relation(fields: [paket_id], references: [id], onDelete: Cascade)
-  kak              kak                @relation(fields: [kak_id], references: [id])
-  dokumen          dokumen?           @relation(fields: [dokumen_id], references: [id])
-  penyusun         users?             @relation("HPSPenyusun", fields: [penyusun_id], references: [id])
-  creator          users?             @relation("HPSCreatedBy", fields: [created_by], references: [id])
-  updater          users?             @relation("HPSUpdatedBy", fields: [updated_by], references: [id])
-  rancangan_kontrak rancangan_kontrak[]
+  old_values  String?  // JSON
+  new_values  String?  // JSON
 
-  @@index([paket_id])
-  @@index([kak_id])
-  @@index([dokumen_id])
-  @@index([status])
-  @@index([tanggal_hps])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
+  actor_id    String?
+  ip_address  String?
+  user_agent  String?
 
-/// Table 25: Rancangan Kontrak - Draft Contract
-model rancangan_kontrak {
-  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor           String   @unique @db.VarChar(100)
-  hps_id          String   @db.Uuid
-  dokumen_id      String?  @db.Uuid
-  judul           String   @db.VarChar(500)
-  isi_kontrak     String?  @db.Text
-  nilai_kontrak   Decimal  @db.Decimal(18, 2)
-  jangka_waktu    Int?     // Duration in days
-  tanggal_draft   DateTime
-  catatan         String?  @db.Text
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  hps     hps      @relation(fields: [hps_id], references: [id])
-  dokumen dokumen? @relation(fields: [dokumen_id], references: [id])
-  kontrak kontrak[]
-
-  @@index([hps_id])
-  @@index([dokumen_id])
-  @@index([tanggal_draft])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 26: Kontrak - Contract
-model kontrak {
-  id                   String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor                String        @unique @db.VarChar(100)
-  paket_id             String        @db.Uuid
-  rancangan_kontrak_id String?       @db.Uuid
-  dokumen_id           String?       @db.Uuid
-  judul                String        @db.VarChar(500)
-  nama_penyedia        String        @db.VarChar(255)
-  alamat_penyedia      String?       @db.Text
-  npwp_penyedia        String?       @db.VarChar(30)
-  nilai_kontrak        Decimal       @db.Decimal(18, 2)
-  nilai_ppn            Decimal?      @db.Decimal(18, 2)
-  nilai_pph            Decimal?      @db.Decimal(18, 2)
-  tanggal_kontrak      DateTime
-  tanggal_mulai        DateTime?
-  tanggal_selesai      DateTime?
-  jangka_waktu         Int?          // Duration in days
-  ppk_id               String?       @db.Uuid
-  status               KontrakStatus @default(DRAFT)
-  catatan              String?       @db.Text
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  paket             paket              @relation(fields: [paket_id], references: [id], onDelete: Cascade)
-  rancangan_kontrak rancangan_kontrak? @relation(fields: [rancangan_kontrak_id], references: [id])
-  dokumen           dokumen?           @relation(fields: [dokumen_id], references: [id])
-  ppk               users?             @relation("KontrakPPK", fields: [ppk_id], references: [id])
-  creator           users?             @relation("KontrakCreatedBy", fields: [created_by], references: [id])
-  updater           users?             @relation("KontrakUpdatedBy", fields: [updated_by], references: [id])
-  ssuk              ssuk[]
-  sskk              sskk[]
-  spmk              spmk[]
-  adendum_kontrak   adendum_kontrak[]
-  ba_kemajuan       ba_kemajuan[]
-  bahp              bahp[]
-  bast              bast[]
-  spp               spp[]
-  rekening_penyedia rekening_penyedia[]
-
-  @@index([paket_id])
-  @@index([rancangan_kontrak_id])
-  @@index([dokumen_id])
-  @@index([status])
-  @@index([tanggal_kontrak])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 27: SSUK - Syarat-Syarat Umum Kontrak (General Contract Terms)
-model ssuk {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  kontrak_id  String   @db.Uuid
-  dokumen_id  String?  @db.Uuid
-  isi_ssuk    String?  @db.Text
-  file_path   String?  @db.VarChar(1000)
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  kontrak kontrak  @relation(fields: [kontrak_id], references: [id], onDelete: Cascade)
-  dokumen dokumen? @relation(fields: [dokumen_id], references: [id])
-
-  @@index([kontrak_id])
-  @@index([dokumen_id])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 28: SSKK - Syarat-Syarat Khusus Kontrak (Special Contract Terms)
-model sskk {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  kontrak_id  String   @db.Uuid
-  dokumen_id  String?  @db.Uuid
-  isi_sskk    String?  @db.Text
-  file_path   String?  @db.VarChar(1000)
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  kontrak kontrak  @relation(fields: [kontrak_id], references: [id], onDelete: Cascade)
-  dokumen dokumen? @relation(fields: [dokumen_id], references: [id])
-
-  @@index([kontrak_id])
-  @@index([dokumen_id])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 29: SPMK - Surat Perintah Mulai Kerja (Work Order)
-model spmk {
-  id              String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor           String     @unique @db.VarChar(100)
-  paket_id        String     @db.Uuid
-  kontrak_id      String     @db.Uuid
-  dokumen_id      String?    @db.Uuid
-  tanggal_spmk    DateTime
-  tanggal_mulai   DateTime
-  tanggal_selesai DateTime
-  ppk_id          String?    @db.Uuid
-  status          SPMKStatus @default(DRAFT)
-  catatan         String?    @db.Text
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  paket       paket        @relation(fields: [paket_id], references: [id], onDelete: Cascade)
-  kontrak     kontrak      @relation(fields: [kontrak_id], references: [id])
-  dokumen     dokumen?     @relation(fields: [dokumen_id], references: [id])
-  ppk         users?       @relation("SPMKPejabatPPK", fields: [ppk_id], references: [id])
-  creator     users?       @relation("SPMKCreatedBy", fields: [created_by], references: [id])
-  updater     users?       @relation("SPMKUpdatedBy", fields: [updated_by], references: [id])
-  ba_kemajuan ba_kemajuan[]
-
-  @@index([paket_id])
-  @@index([kontrak_id])
-  @@index([dokumen_id])
-  @@index([status])
-  @@index([tanggal_spmk])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 30: Adendum Kontrak - Contract Amendment
-model adendum_kontrak {
-  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor            String   @unique @db.VarChar(100)
-  kontrak_id       String   @db.Uuid
-  dokumen_id       String?  @db.Uuid
-  nomor_adendum    Int      // Amendment sequence number
-  tanggal_adendum  DateTime
-  perihal          String   @db.VarChar(500)
-  perubahan        String?  @db.Text  // Description of changes
-  nilai_sebelum    Decimal? @db.Decimal(18, 2)
-  nilai_sesudah    Decimal? @db.Decimal(18, 2)
-  waktu_sebelum    Int?     // Days before
-  waktu_sesudah    Int?     // Days after
-  catatan          String?  @db.Text
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  kontrak kontrak  @relation(fields: [kontrak_id], references: [id], onDelete: Cascade)
-  dokumen dokumen? @relation(fields: [dokumen_id], references: [id])
-
-  @@index([kontrak_id])
-  @@index([dokumen_id])
-  @@index([tanggal_adendum])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 31: BA Kemajuan - Berita Acara Kemajuan (Progress Report)
-model ba_kemajuan {
-  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor             String   @unique @db.VarChar(100)
-  kontrak_id        String   @db.Uuid
-  spmk_id           String?  @db.Uuid
-  dokumen_id        String?  @db.Uuid
-  tanggal_ba        DateTime
-  periode_dari      DateTime
-  periode_sampai    DateTime
-  persentase_fisik  Decimal  @db.Decimal(5, 2)  // Physical progress %
-  persentase_waktu  Decimal  @db.Decimal(5, 2)  // Time progress %
-  uraian_kemajuan   String?  @db.Text
-  kendala           String?  @db.Text
-  catatan           String?  @db.Text
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  kontrak kontrak  @relation(fields: [kontrak_id], references: [id], onDelete: Cascade)
-  spmk    spmk?    @relation(fields: [spmk_id], references: [id])
-  dokumen dokumen? @relation(fields: [dokumen_id], references: [id])
-
-  @@index([kontrak_id])
-  @@index([spmk_id])
-  @@index([dokumen_id])
-  @@index([tanggal_ba])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 32: BAHP - Berita Acara Hasil Pemeriksaan (Inspection Report)
-model bahp {
-  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor             String   @unique @db.VarChar(100)
-  kontrak_id        String   @db.Uuid
-  dokumen_id        String?  @db.Uuid
-  tanggal_bahp      DateTime
-  hasil_pemeriksaan String?  @db.Text
-  rekomendasi       String?  @db.Text
-  sesuai_kontrak    Boolean  @default(false)
-  catatan           String?  @db.Text
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  kontrak kontrak  @relation(fields: [kontrak_id], references: [id], onDelete: Cascade)
-  dokumen dokumen? @relation(fields: [dokumen_id], references: [id])
-  bast    bast[]
-
-  @@index([kontrak_id])
-  @@index([dokumen_id])
-  @@index([tanggal_bahp])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 33: BAST - Berita Acara Serah Terima (Handover Report)
-model bast {
-  id              String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor           String     @unique @db.VarChar(100)
-  paket_id        String     @db.Uuid
-  kontrak_id      String     @db.Uuid
-  bahp_id         String?    @db.Uuid  // Must have BAHP before BAST
-  dokumen_id      String?    @db.Uuid
-  tanggal_bast    DateTime
-  jenis_serah     String     @db.VarChar(50)  // PHO (Provisional) or FHO (Final)
-  uraian_pekerjaan String?   @db.Text
-  nilai_pekerjaan Decimal    @db.Decimal(18, 2)
-  ppk_id          String?    @db.Uuid
-  penerima_id     String?    @db.Uuid
-  status          BASTStatus @default(DRAFT)
-  catatan         String?    @db.Text
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  paket    paket    @relation(fields: [paket_id], references: [id], onDelete: Cascade)
-  kontrak  kontrak  @relation(fields: [kontrak_id], references: [id])
-  bahp     bahp?    @relation(fields: [bahp_id], references: [id])
-  dokumen  dokumen? @relation(fields: [dokumen_id], references: [id])
-  ppk      users?   @relation("BASTPejabatPPK", fields: [ppk_id], references: [id])
-  penerima users?   @relation("BASTPenerima", fields: [penerima_id], references: [id])
-  creator  users?   @relation("BASTCreatedBy", fields: [created_by], references: [id])
-  updater  users?   @relation("BASTUpdatedBy", fields: [updated_by], references: [id])
-  spp      spp[]
-
-  @@index([paket_id])
-  @@index([kontrak_id])
-  @@index([bahp_id])
-  @@index([dokumen_id])
-  @@index([status])
-  @@index([tanggal_bast])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-// =============================================================================
-// PHASE 3: PAYMENT TABLES (34-39)
-// =============================================================================
-
-/// Table 34: SPP - Surat Permintaan Pembayaran (Payment Request)
-model spp {
-  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor           String    @unique @db.VarChar(100)
-  paket_id        String    @db.Uuid
-  kontrak_id      String?   @db.Uuid
-  bast_id         String?   @db.Uuid  // SPP requires final BAST
-  dokumen_id      String?   @db.Uuid
-  tanggal_spp     DateTime
-  jenis_spp       String    @db.VarChar(50)  // LS (Langsung), UP, TUP, GUP
-  nilai_tagihan   Decimal   @db.Decimal(18, 2)
-  nilai_ppn       Decimal?  @db.Decimal(18, 2)
-  nilai_pph       Decimal?  @db.Decimal(18, 2)
-  nilai_potongan  Decimal?  @db.Decimal(18, 2)
-  nilai_bersih    Decimal   @db.Decimal(18, 2)
-  ppk_id          String?   @db.Uuid
-  status          SPPStatus @default(DRAFT)
-  catatan         String?   @db.Text
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  paket         paket        @relation(fields: [paket_id], references: [id], onDelete: Cascade)
-  kontrak       kontrak?     @relation(fields: [kontrak_id], references: [id])
-  bast          bast?        @relation(fields: [bast_id], references: [id])
-  dokumen       dokumen?     @relation(fields: [dokumen_id], references: [id])
-  ppk           users?       @relation("SPPPejabatPPK", fields: [ppk_id], references: [id])
-  creator       users?       @relation("SPPCreatedBy", fields: [created_by], references: [id])
-  updater       users?       @relation("SPPUpdatedBy", fields: [updated_by], references: [id])
-  spp_detail    spp_detail[]
-  spm           spm[]
-  potongan_pajak potongan_pajak[]
-
-  @@index([paket_id])
-  @@index([kontrak_id])
-  @@index([bast_id])
-  @@index([dokumen_id])
-  @@index([status])
-  @@index([tanggal_spp])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 35: SPP Detail - Payment Request Line Items
-model spp_detail {
-  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  spp_id        String   @db.Uuid
-  urutan        Int
-  uraian        String   @db.Text
-  volume        Decimal? @db.Decimal(18, 4)
-  satuan        String?  @db.VarChar(50)
-  harga_satuan  Decimal? @db.Decimal(18, 2)
-  jumlah        Decimal  @db.Decimal(18, 2)
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  spp spp @relation(fields: [spp_id], references: [id], onDelete: Cascade)
-
-  @@index([spp_id])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 36: SPM - Surat Perintah Membayar (Payment Order)
-model spm {
-  id             String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor          String    @unique @db.VarChar(100)
-  paket_id       String    @db.Uuid
-  spp_id         String    @db.Uuid  // SPM requires approved SPP
-  dokumen_id     String?   @db.Uuid
-  tanggal_spm    DateTime
-  jenis_spm      String    @db.VarChar(50)  // Same as SPP type
-  nilai_spm      Decimal   @db.Decimal(18, 2)
-  kuasa_pa_id    String?   @db.Uuid  // Kuasa Pengguna Anggaran
-  status         SPMStatus @default(DRAFT)
-  catatan        String?   @db.Text
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  paket    paket    @relation(fields: [paket_id], references: [id], onDelete: Cascade)
-  spp      spp      @relation(fields: [spp_id], references: [id])
-  dokumen  dokumen? @relation(fields: [dokumen_id], references: [id])
-  kuasa_pa users?   @relation("SPMKuasaPA", fields: [kuasa_pa_id], references: [id])
-  creator  users?   @relation("SPMCreatedBy", fields: [created_by], references: [id])
-  updater  users?   @relation("SPMUpdatedBy", fields: [updated_by], references: [id])
-  sp2d     sp2d[]
-
-  @@index([paket_id])
-  @@index([spp_id])
-  @@index([dokumen_id])
-  @@index([status])
-  @@index([tanggal_spm])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 37: SP2D - Surat Perintah Pencairan Dana (Disbursement Order)
-model sp2d {
-  id                String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  nomor             String     @unique @db.VarChar(100)
-  paket_id          String     @db.Uuid
-  spm_id            String     @db.Uuid  // SP2D requires SPM
-  dokumen_id        String?    @db.Uuid
-  tanggal_sp2d      DateTime
-  nilai_sp2d        Decimal    @db.Decimal(18, 2)
-  bank_penerima     String?    @db.VarChar(100)
-  rekening_penerima String?    @db.VarChar(50)
-  nama_penerima     String?    @db.VarChar(255)
-  kuasa_bud_id      String?    @db.Uuid  // Kuasa Bendahara Umum Daerah
-  tanggal_cair      DateTime?
-  status            SP2DStatus @default(DRAFT)
-  catatan           String?    @db.Text
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  paket     paket    @relation(fields: [paket_id], references: [id], onDelete: Cascade)
-  spm       spm      @relation(fields: [spm_id], references: [id])
-  dokumen   dokumen? @relation(fields: [dokumen_id], references: [id])
-  kuasa_bud users?   @relation("SP2DKuasaBUD", fields: [kuasa_bud_id], references: [id])
-  creator   users?   @relation("SP2DCreatedBy", fields: [created_by], references: [id])
-  updater   users?   @relation("SP2DUpdatedBy", fields: [updated_by], references: [id])
-
-  @@index([paket_id])
-  @@index([spm_id])
-  @@index([dokumen_id])
-  @@index([status])
-  @@index([tanggal_sp2d])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 38: Potongan Pajak - Tax Deductions
-model potongan_pajak {
-  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  spp_id       String   @db.Uuid
-  jenis_pajak  String   @db.VarChar(50)  // PPh21, PPh22, PPh23, PPN, etc.
-  dasar_pajak  Decimal  @db.Decimal(18, 2)
-  tarif        Decimal  @db.Decimal(5, 2)  // Percentage
-  nilai_pajak  Decimal  @db.Decimal(18, 2)
-  npwp         String?  @db.VarChar(30)
-  nama_wp      String?  @db.VarChar(255)
-  catatan      String?  @db.Text
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  spp spp @relation(fields: [spp_id], references: [id], onDelete: Cascade)
-
-  @@index([spp_id])
-  @@index([jenis_pajak])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-/// Table 39: Rekening Penyedia - Vendor Bank Account
-model rekening_penyedia {
-  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  kontrak_id    String   @db.Uuid
-  nama_bank     String   @db.VarChar(100)
-  cabang_bank   String?  @db.VarChar(100)
-  nomor_rekening String  @db.VarChar(50)
-  nama_rekening String   @db.VarChar(255)
-  is_primary    Boolean  @default(false)
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-  updated_by String?  @db.Uuid
-  is_deleted Boolean  @default(false)
-
-  // Relations
-  kontrak kontrak @relation(fields: [kontrak_id], references: [id], onDelete: Cascade)
-  creator users?  @relation("RekeningCreatedBy", fields: [created_by], references: [id])
-  updater users?  @relation("RekeningUpdatedBy", fields: [updated_by], references: [id])
-
-  @@index([kontrak_id])
-  @@index([is_deleted])
-  @@schema("asisten")
-}
-
-// =============================================================================
-// PHASE 4: AUDIT-GRADE HARDENING & FORENSIC ARCHIVE TABLES (40-41)
-// =============================================================================
-
-/// Table 40: Archive Lock Log - WORM behavior audit trail
-/// Records when records are locked for archival purposes (immutable)
-model archive_lock_log {
-  id                String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  tahun_anggaran    Int               // Fiscal year
-  entity_type       String            @db.VarChar(100)  // Table name: paket, workflow_instance, etc.
-  entity_id         String            @db.Uuid          // Primary key of locked record
-  lock_reason       ArchiveLockReason @default(WORKFLOW_COMPLETED)
-  locked_at         DateTime          @default(now())
-  locked_by         String?           @db.Uuid
-  // Hash chain for integrity
-  record_hash       String            @db.VarChar(64)   // SHA-256 hash of record at lock time
-  previous_log_hash String?           @db.VarChar(64)   // Chain to previous log entry
-  // Metadata
-  workflow_state    String?           @db.VarChar(50)   // State at time of lock
-  document_count    Int?              // Number of documents archived
-  total_nilai       Decimal?          @db.Decimal(18, 2) // Total contract/payment value
-  catatan           String?           @db.Text
-
-  // Standard audit fields (created_at only - immutable record)
   created_at DateTime @default(now())
 
-  // Relations
-  locker users? @relation("ArchiveLockedBy", fields: [locked_by], references: [id])
-
-  @@unique([entity_type, entity_id])  // One lock per entity
-  @@index([tahun_anggaran])
-  @@index([entity_type])
-  @@index([entity_id])
-  @@index([lock_reason])
-  @@index([locked_at])
-  @@index([record_hash])
-  @@index([previous_log_hash])
-  @@schema("asisten")
-}
-
-/// Table 41: Backup Catalog - Disaster recovery metadata
-/// Tracks all backup operations for audit compliance
-model backup_catalog {
-  id                 String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  tahun_anggaran     Int          // Fiscal year being backed up
-  backup_type        BackupType   @default(FULL)
-  backup_name        String       @db.VarChar(255)  // Descriptive name
-  backup_path        String       @db.VarChar(1000) // Storage location (WORM archive)
-  backup_size        BigInt?      // Size in bytes
-  // Integrity verification
-  backup_hash        String       @db.VarChar(64)   // SHA-256 of backup file
-  manifest_hash      String?      @db.VarChar(64)   // Hash of backup manifest
-  // Status tracking
-  status             BackupStatus @default(PENDING)
-  started_at         DateTime     @default(now())
-  completed_at       DateTime?
-  verified_at        DateTime?
-  verified_by        String?      @db.Uuid
-  // Statistics
-  table_count        Int?         // Number of tables backed up
-  record_count       Int?         // Total records backed up
-  document_count     Int?         // Documents/attachments backed up
-  // Error handling
-  error_message      String?      @db.Text
-  retry_count        Int          @default(0)
-  // Retention
-  retention_days     Int          @default(2555)    // ~7 years for government compliance
-  expires_at         DateTime?
-
-  // Standard audit fields
-  created_at DateTime @default(now())
-  created_by String?  @db.Uuid
-  updated_at DateTime @updatedAt
-
-  // Relations
-  creator  users? @relation("BackupCreatedBy", fields: [created_by], references: [id])
-  verifier users? @relation("BackupVerifiedBy", fields: [verified_by], references: [id])
-
-  @@index([tahun_anggaran])
-  @@index([backup_type])
-  @@index([status])
-  @@index([started_at])
-  @@index([completed_at])
-  @@index([backup_hash])
-  @@index([expires_at])
-  @@schema("asisten")
+  @@index([table_name, record_id])
+  @@index([actor_id])
+  @@index([created_at])
 }

@@ -1,0 +1,134 @@
+{
+  "documentType": "spp",
+  "title": "SURAT PERMINTAAN PEMBAYARAN",
+  "description": "Dokumen permintaan pembayaran kepada KPPN",
+  "paperSize": "A4",
+  "orientation": "portrait",
+  "margins": {
+    "top": 50,
+    "bottom": 50,
+    "left": 60,
+    "right": 60
+  },
+  "header": {
+    "showLogo": true,
+    "showMinistry": true,
+    "showInstitution": true,
+    "showAddress": true,
+    "showContact": true,
+    "lineStyle": "double"
+  },
+  "requiredFields": [
+    "request_number",
+    "item_name",
+    "estimated_value",
+    "budget_code"
+  ],
+  "optionalFields": [
+    "description",
+    "unit",
+    "requester_name",
+    "requester_nip",
+    "tier"
+  ],
+  "sections": [
+    {
+      "type": "title",
+      "text": "SURAT PERMINTAAN PEMBAYARAN",
+      "fontSize": 14,
+      "bold": true,
+      "align": "center"
+    },
+    {
+      "type": "documentNumber",
+      "prefix": "SPP",
+      "format": "{sequence}/{prefix}/{unit}/{year}"
+    },
+    {
+      "type": "sectionTitle",
+      "text": "I. DATA UMUM",
+      "fontSize": 11,
+      "bold": true
+    },
+    {
+      "type": "table",
+      "headers": ["No", "Uraian", "Keterangan"],
+      "columnWidths": [40, 150, "auto"],
+      "rows": [
+        ["1", "Nomor Pengajuan", "{request_number}"],
+        ["2", "Tanggal Pengajuan", "{created_at}"],
+        ["3", "Nama Barang/Jasa", "{item_name}"],
+        ["4", "Unit Pengusul", "{unit}"],
+        ["5", "Kode Anggaran", "{budget_code}"],
+        ["6", "Tahun Anggaran", "{fiscal_year}"],
+        ["7", "Jumlah (Rp)", "{amount_formatted}"],
+        ["8", "Terbilang", "{amount_words}"]
+      ]
+    },
+    {
+      "type": "sectionTitle",
+      "text": "II. TUJUAN PEMBAYARAN",
+      "fontSize": 11,
+      "bold": true
+    },
+    {
+      "type": "paragraph",
+      "value": "{description}",
+      "align": "justify"
+    },
+    {
+      "type": "sectionTitle",
+      "text": "III. LAMPIRAN",
+      "fontSize": 11,
+      "bold": true
+    },
+    {
+      "type": "checklist",
+      "items": [
+        {"label": "Nota Dinas Permintaan", "required": true, "tiers": ["tier1", "tier2", "tier3"]},
+        {"label": "Kwitansi", "required": true, "tiers": ["tier1", "tier2", "tier3"]},
+        {"label": "Faktur/Invoice", "required": true, "tiers": ["tier1", "tier2", "tier3"]},
+        {"label": "Bukti Serah Terima Barang", "required": true, "tiers": ["tier2", "tier3"]},
+        {"label": "Surat Perjanjian/Kontrak", "required": true, "tiers": ["tier3"]},
+        {"label": "Berita Acara Pemeriksaan", "required": true, "tiers": ["tier2", "tier3"]},
+        {"label": "Foto Dokumentasi", "required": false, "tiers": ["tier1", "tier2", "tier3"]}
+      ],
+      "showRequiredNote": true
+    },
+    {
+      "type": "declaration",
+      "text": "Dengan ini saya menyatakan bahwa permintaan pembayaran ini sesuai dengan peraturan yang berlaku dan dokumen pendukung telah lengkap."
+    },
+    {
+      "type": "signatures",
+      "layout": "three-column",
+      "columns": [
+        {
+          "title": "Pemohon",
+          "position": "requester",
+          "showNIP": true
+        },
+        {
+          "title": "Diverifikasi oleh",
+          "position": "Bendahara Pengeluaran",
+          "showNIP": true
+        },
+        {
+          "title": "Disetujui oleh",
+          "position": "PPSPM",
+          "showNIP": true
+        }
+      ]
+    }
+  ],
+  "watermark": {
+    "showOnDraft": true,
+    "text": "DRAFT",
+    "opacity": 0.2,
+    "angle": -45
+  },
+  "footer": {
+    "showPageNumbers": true,
+    "format": "Halaman {current} dari {total}"
+  }
+}

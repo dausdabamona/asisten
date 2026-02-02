@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>PPK DIPA API Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .success { color: green; background: #e8f5e9; padding: 10px; margin: 10px 0; }
+    .error { color: red; background: #ffebee; padding: 10px; margin: 10px 0; }
+    .info { color: blue; background: #e3f2fd; padding: 10px; margin: 10px 0; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f5f5f5; }
+    button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>🔧 PPK DIPA API Diagnostic Test</h1>
+  
+  <div id="diagnostics"></div>
+  <div id="result"></div>
+  <div id="dipaList"></div>
+  
+  <button onclick="testElectronAPI()">Test electronAPI</button>
+  <button onclick="testDipaAPI()">Test DIPA API</button>
+  <button onclick="listAllDipa()">List All DIPA</button>
+  <button onclick="location.reload()">Reload Page</button>
+  
+  <script>
+    const resultsDiv = document.getElementById('result');
+    const diagnosticsDiv = document.getElementById('diagnostics');
+    const dipaListDiv = document.getElementById('dipaList');
+    
+    // Run diagnostics on load
+    window.addEventListener('DOMContentLoaded', () => {
+      runDiagnostics();
+    });
+    
+    function addLog(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+      const div = document.createElement('div');
+      div.className = className;
+      div.textContent = `[${timestamp}] ${message}`;
+      resultsDiv.appendChild(div);
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+    
+    function runDiagnostics() {
+      const diag = document.createElement('div');
+      diag.innerHTML = '<h2>🔍 Diagnostics</h2>';
+      
+      // Check 1: electronAPI
+      if (typeof window.electronAPI !== 'undefined') {
+        diag.innerHTML += '<p class="success">✅ window.electronAPI exists</p>';
+      } else {
+        diag.innerHTML += '<p class="error">❌ window.electronAPI is undefined</p>';
+      }
+      
+      // Check 2: DIPA API
+      if (window.electronAPI && typeof window.electronAPI.dipa !== 'undefined') {
+        diag.innerHTML += '<p class="success">✅ window.electronAPI.dipa exists</p>';
+        
+        // Check methods
+        const methods = ['list', 'get', 'create', 'update', 'delete', 'importCsv'];
+        methods.forEach(method => {
+          if (typeof window.electronAPI.dipa[method] === 'function') {
+            diag.innerHTML += `<p class="success">  ✅ dipa.${method}() available</p>`;
+          } else {
+            diag.innerHTML += `<p class="error">  ❌ dipa.${method}() NOT available</p>`;
+          }
+        });
+      } else {
+        diag.innerHTML += '<p class="error">❌ window.electronAPI.dipa is undefined</p>';
+      }
+      
+      diagnosticsDiv.innerHTML = diag.innerHTML;
+    }
+    
+    async function testElectronAPI() {
+      addLog('Testing electronAPI...', 'info');
+      
+      if (!window.electronAPI) {
+        addLog('❌ electronAPI is undefined!', 'error');
+        return;
+      }
+      
+      addLog('✅ electronAPI is defined', 'success');
+      addLog('Available keys: ' + Object.keys(window.electronAPI).join(', '), 'info');
+    }
+    
+    async function testDipaAPI() {
+      addLog('Testing DIPA API...', 'info');
+      
+      if (!window.electronAPI || !window.electronAPI.dipa) {
+        addLog('❌ DIPA API not available', 'error');
+        return;
+      }
+      
+      addLog('✅ DIPA API is available', 'success');
+      addLog('Methods: ' + Object.keys(window.electronAPI.dipa).join(', '), 'info');
+      
+      // Try to list DIPA
+      try {
+        addLog('Calling dipa.list()...', 'info');
+        const result = await window.electronAPI.dipa.list({ limit: 5 });
+        
+        if (result.success) {
+          addLog(`✅ DIPA list retrieved: ${result.total} total, ${result.data.length} returned`, 'success');
+          displayDipaTable(result.data);
+        } else {
+          addLog(`❌ API error: ${result.error || 'Unknown error'}`, 'error');
+        }
+      } catch (err) {
+        addLog(`❌ Exception calling dipa.list(): ${err.message}`, 'error');
+        console.error('Full error:', err);
+      }
+    }
+    
+    async function listAllDipa() {
+      addLog('Loading all DIPA...', 'info');
+      
+      try {
+        const result = await window.electronAPI.dipa.list({ limit: 1000 });
+        if (result.success) {
+          addLog(`✅ Loaded ${result.data.length} DIPA records from database`, 'success');
+          displayDipaTable(result.data);
+        }
+      } catch (err) {
+        addLog(`❌ Error: ${err.message}`, 'error');
+      }
+    }
+    
+    function displayDipaTable(dipaData) {
+      if (!dipaData || dipaData.length === 0) {
+        dipaListDiv.innerHTML = '<p class="error">No DIPA data to display</p>';
+        return;
+      }
+      
+      let html = `<h3>📋 DIPA List (${dipaData.length} records)</h3>`;
+      html += '<table>';
+      html += '<tr><th>Tahun</th><th>Nomor DIPA</th><th>Satker</th><th>Uraian Item</th><th>Total</th></tr>';
+      
+      dipaData.forEach(d => {
+        html += `<tr>
+          <td>${d.tahun_anggaran || '-'}</td>
+          <td>${d.nomor_dipa || '-'}</td>
+          <td>${d.kdsatker || '-'}</td>
+          <td>${d.uraian_item || '-'}</td>
+          <td>Rp ${(d.total || 0).toLocaleString('id-ID')}</td>
+        </tr>`;
+      });
+      
+      html += '</table>';
+      dipaListDiv.innerHTML = html;
+    }
+  </script>
+</body>
+</html>

@@ -3,7 +3,8 @@
  * Business logic for UP, TUP, Kuitansi, and SPJ operations
  */
 
-import { PrismaClient, KuitansiTipe, PembayaranStatus, SPJStatus, DokumenTipe } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { KuitansiTipe, PembayaranStatus, SPJStatus, DokumenTipe } from '../types';
 import { Decimal } from '@prisma/client/runtime/library';
 import { CreateUangMukaDTO, CreateRampungDTO, CreateSPJDTO, RequestContext } from '../types';
 import { AuditService } from './audit.service';

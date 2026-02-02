@@ -1,0 +1,128 @@
+{
+  "documentType": "spm",
+  "title": "SURAT PERINTAH MEMBAYAR",
+  "description": "Dokumen perintah pembayaran ke KPPN",
+  "paperSize": "A4",
+  "orientation": "portrait",
+  "margins": {
+    "top": 50,
+    "bottom": 50,
+    "left": 60,
+    "right": 60
+  },
+  "header": {
+    "showLogo": true,
+    "showMinistry": true,
+    "showInstitution": true,
+    "showAddress": true,
+    "showContact": true,
+    "lineStyle": "double"
+  },
+  "requiredFields": [
+    "request_number",
+    "item_name",
+    "estimated_value"
+  ],
+  "optionalFields": [
+    "spp_number",
+    "spp_date",
+    "vendor_name",
+    "recipient_name",
+    "bank_name",
+    "bank_account",
+    "bank_account_name",
+    "include_ppn",
+    "include_pph",
+    "ppspm_name",
+    "ppspm_nip"
+  ],
+  "sections": [
+    {
+      "type": "title",
+      "text": "SURAT PERINTAH MEMBAYAR",
+      "fontSize": 14,
+      "bold": true,
+      "align": "center"
+    },
+    {
+      "type": "documentNumber",
+      "prefix": "SPM",
+      "format": "{sequence}/{prefix}/{unit}/{year}"
+    },
+    {
+      "type": "recipient",
+      "lines": [
+        "Kepada Yth.",
+        "Kepala Kantor Pelayanan Perbendaharaan Negara (KPPN)",
+        "di Sorong"
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Berdasarkan Surat Permintaan Pembayaran (SPP) yang telah diverifikasi dan disetujui, dengan ini diperintahkan untuk membayar kepada:",
+      "align": "justify"
+    },
+    {
+      "type": "table",
+      "title": "DATA PENERIMA PEMBAYARAN",
+      "headers": ["No", "Uraian", "Keterangan"],
+      "columnWidths": [40, 150, "auto"],
+      "rows": [
+        ["1", "Nomor SPP", "{spp_number}"],
+        ["2", "Tanggal SPP", "{spp_date}"],
+        ["3", "Penerima Pembayaran", "{recipient_name}"],
+        ["4", "Bank Tujuan", "{bank_name}"],
+        ["5", "Nomor Rekening", "{bank_account}"],
+        ["6", "Nama Rekening", "{bank_account_name}"]
+      ]
+    },
+    {
+      "type": "sectionTitle",
+      "text": "RINCIAN PEMBAYARAN",
+      "fontSize": 11,
+      "bold": true
+    },
+    {
+      "type": "table",
+      "headers": ["No", "Uraian", "Jumlah (Rp)"],
+      "columnWidths": [40, "auto", 140],
+      "rows": [
+        ["1", "Nilai Bruto", "{gross_amount}"],
+        ["2", "PPh Pasal 22 (1.5%)", "({pph_amount})"],
+        ["3", "PPN (11%)", "{ppn_amount}"],
+        ["", "JUMLAH BERSIH", "{net_amount}"]
+      ],
+      "highlightLastRow": true
+    },
+    {
+      "type": "amountWords",
+      "prefix": "Terbilang: ",
+      "value": "{amount_words}"
+    },
+    {
+      "type": "paragraph",
+      "text": "Demikian Surat Perintah Membayar ini dibuat untuk dilaksanakan sebagaimana mestinya.",
+      "align": "justify"
+    },
+    {
+      "type": "signatures",
+      "layout": "single-right",
+      "signer": {
+        "title": "Pejabat Penandatangan SPM",
+        "position": "PPSPM",
+        "showDate": true,
+        "showNIP": true
+      }
+    }
+  ],
+  "watermark": {
+    "showOnDraft": true,
+    "text": "DRAFT",
+    "opacity": 0.2,
+    "angle": -45
+  },
+  "footer": {
+    "showPageNumbers": true,
+    "format": "Halaman {current} dari {total}"
+  }
+}

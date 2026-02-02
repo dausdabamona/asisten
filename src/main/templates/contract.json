@@ -1,0 +1,180 @@
+{
+  "documentType": "contract",
+  "title": "SURAT PERJANJIAN/KONTRAK",
+  "description": "Dokumen perjanjian pengadaan barang/jasa",
+  "paperSize": "A4",
+  "orientation": "portrait",
+  "margins": {
+    "top": 50,
+    "bottom": 50,
+    "left": 60,
+    "right": 60
+  },
+  "header": {
+    "showLogo": true,
+    "showMinistry": true,
+    "showInstitution": true,
+    "showAddress": true,
+    "showContact": true,
+    "lineStyle": "double"
+  },
+  "tierVariants": {
+    "tier1": {
+      "title": "SURAT PESANAN",
+      "subtitle": "PENGADAAN BARANG/JASA",
+      "articles": ["scope", "value", "payment", "timeline", "closing"]
+    },
+    "tier2": {
+      "title": "SURAT PERJANJIAN",
+      "subtitle": "PENGADAAN BARANG/JASA",
+      "articles": ["scope", "value", "payment", "timeline", "guarantees", "penalties", "closing"]
+    },
+    "tier3": {
+      "title": "KONTRAK PENGADAAN",
+      "subtitle": "BARANG/JASA PEMERINTAH",
+      "articles": ["scope", "value", "payment", "timeline", "guarantees", "penalties", "dispute", "forceMajeure", "closing"]
+    }
+  },
+  "requiredFields": [
+    "contract_number",
+    "vendor_name",
+    "contract_value"
+  ],
+  "optionalFields": [
+    "request_id",
+    "ppk_name",
+    "ppk_nip",
+    "vendor_contact_person",
+    "vendor_position",
+    "vendor_address",
+    "vendor_npwp",
+    "scope",
+    "item_name",
+    "payment_method",
+    "payment_terms",
+    "duration_days",
+    "start_date",
+    "end_date",
+    "status"
+  ],
+  "sections": [
+    {
+      "type": "title",
+      "text": "{title}",
+      "fontSize": 14,
+      "bold": true,
+      "align": "center"
+    },
+    {
+      "type": "subtitle",
+      "text": "{subtitle}",
+      "fontSize": 12,
+      "align": "center"
+    },
+    {
+      "type": "documentNumber",
+      "prefix": "SPK",
+      "format": "Nomor: {contract_number}"
+    },
+    {
+      "type": "introduction",
+      "text": "Pada hari ini, {formal_date}, kami yang bertanda tangan di bawah ini:"
+    },
+    {
+      "type": "party",
+      "number": 1,
+      "title": "PIHAK PERTAMA",
+      "fields": [
+        {"label": "Nama", "value": "{ppk_name}"},
+        {"label": "Jabatan", "value": "Pejabat Pembuat Komitmen (PPK)"},
+        {"label": "Instansi", "value": "{institution_name}"},
+        {"label": "Alamat", "value": "{institution_address}"}
+      ],
+      "designation": "Selanjutnya disebut PIHAK PERTAMA"
+    },
+    {
+      "type": "party",
+      "number": 2,
+      "title": "PIHAK KEDUA",
+      "fields": [
+        {"label": "Nama", "value": "{vendor_contact_person}"},
+        {"label": "Jabatan", "value": "{vendor_position}"},
+        {"label": "Perusahaan", "value": "{vendor_name}"},
+        {"label": "Alamat", "value": "{vendor_address}"},
+        {"label": "NPWP", "value": "{vendor_npwp}"}
+      ],
+      "designation": "Selanjutnya disebut PIHAK KEDUA"
+    },
+    {
+      "type": "agreementIntro",
+      "text": "Kedua belah pihak sepakat untuk mengadakan perjanjian dengan ketentuan sebagai berikut:"
+    }
+  ],
+  "articles": {
+    "scope": {
+      "title": "RUANG LINGKUP PEKERJAAN",
+      "content": "{scope}"
+    },
+    "value": {
+      "title": "NILAI KONTRAK",
+      "template": "Nilai kontrak adalah sebesar {contract_value_formatted} ({contract_value_words})."
+    },
+    "payment": {
+      "title": "CARA PEMBAYARAN",
+      "variants": {
+        "termin": "Pembayaran dilakukan secara bertahap (termin) sesuai dengan progres pekerjaan:\n{payment_terms}",
+        "cash": "Pembayaran dilakukan secara tunai setelah pekerjaan selesai dan diterima dengan baik.",
+        "transfer": "Pembayaran dilakukan melalui transfer bank ke rekening PIHAK KEDUA setelah pekerjaan selesai dan diterima dengan baik."
+      }
+    },
+    "timeline": {
+      "title": "JANGKA WAKTU",
+      "template": "Jangka waktu pelaksanaan pekerjaan adalah {duration_days} ({duration_words}) hari kalender, terhitung sejak {start_date} sampai dengan {end_date}."
+    },
+    "guarantees": {
+      "title": "JAMINAN",
+      "content": "PIHAK KEDUA wajib menyerahkan jaminan pelaksanaan sebesar 5% dari nilai kontrak dan jaminan pemeliharaan sebesar 5% dari nilai kontrak."
+    },
+    "penalties": {
+      "title": "SANKSI DAN DENDA",
+      "content": "Apabila PIHAK KEDUA terlambat dalam penyelesaian pekerjaan, maka dikenakan denda sebesar 1/1000 (satu per seribu) dari nilai kontrak untuk setiap hari keterlambatan, maksimal 5% dari nilai kontrak."
+    },
+    "dispute": {
+      "title": "PENYELESAIAN PERSELISIHAN",
+      "content": "Apabila terjadi perselisihan dalam pelaksanaan kontrak ini, kedua belah pihak sepakat untuk menyelesaikan secara musyawarah mufakat. Apabila tidak tercapai kesepakatan, maka akan diselesaikan melalui Pengadilan Negeri Sorong."
+    },
+    "forceMajeure": {
+      "title": "KEADAAN KAHAR (FORCE MAJEURE)",
+      "content": "Keadaan kahar adalah keadaan di luar kekuasaan kedua belah pihak yang mengakibatkan tidak dapat dilaksanakannya kewajiban masing-masing pihak, meliputi namun tidak terbatas pada: bencana alam, perang, huru-hara, kebijakan pemerintah, dan wabah penyakit."
+    },
+    "closing": {
+      "title": "PENUTUP",
+      "template": "{document_type} ini dibuat dan ditandatangani oleh kedua belah pihak pada hari dan tanggal tersebut di atas, dalam rangkap 2 (dua) yang keduanya mempunyai kekuatan hukum yang sama."
+    }
+  },
+  "signatures": {
+    "layout": "two-column",
+    "left": {
+      "title": "PIHAK PERTAMA",
+      "subtitle": "{institution_name}",
+      "signer": "{ppk_name}",
+      "identifier": "NIP. {ppk_nip}"
+    },
+    "right": {
+      "title": "PIHAK KEDUA",
+      "subtitle": "{vendor_name}",
+      "signer": "{vendor_contact_person}",
+      "identifier": "{vendor_position}"
+    }
+  },
+  "watermark": {
+    "showOnDraft": true,
+    "text": "DRAFT",
+    "opacity": 0.2,
+    "angle": -45
+  },
+  "footer": {
+    "showPageNumbers": true,
+    "format": "Halaman {current} dari {total}"
+  }
+}
