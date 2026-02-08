@@ -1,14 +1,39 @@
 /**
- * SPPD Generator (Surat Perintah Perjalanan Dinas)
- * Dokumen perjalanan dinas dengan halaman depan & belakang
- * 
+ * SPPD Generator (Surat Perjalanan Dinas) - Halaman 1
+ * Format sesuai standar KKP
+ *
  * @file src/main/templates/perjalanan-dinas/sppd.js
  */
 
 const { BaseDocumentGenerator } = require('../generators/base-generator');
-const { createParagraph, createSpacer, createPageBreak } = require('../helpers/doc-helper');
-const { createSimpleTable } = require('../helpers/table-helper');
+const { createParagraph, createSpacer } = require('../helpers/doc-helper');
 const { formatTanggalPanjang } = require('../helpers/format-helper');
+const {
+  Table,
+  TableRow,
+  TableCell,
+  Paragraph,
+  TextRun,
+  BorderStyle,
+  WidthType,
+  VerticalAlign,
+  AlignmentType
+} = require('docx');
+
+// Border styles
+const BORDERS_FULL = {
+  top: { style: BorderStyle.SINGLE, size: 8, color: '000000' },
+  bottom: { style: BorderStyle.SINGLE, size: 8, color: '000000' },
+  left: { style: BorderStyle.SINGLE, size: 8, color: '000000' },
+  right: { style: BorderStyle.SINGLE, size: 8, color: '000000' },
+};
+
+const BORDERS_NONE = {
+  top: { style: BorderStyle.NONE },
+  bottom: { style: BorderStyle.NONE },
+  left: { style: BorderStyle.NONE },
+  right: { style: BorderStyle.NONE },
+};
 
 class SPPDGenerator extends BaseDocumentGenerator {
   constructor() {
@@ -30,231 +55,269 @@ class SPPDGenerator extends BaseDocumentGenerator {
   }
 
   /**
-   * Build SPPD content (2 pages)
+   * Build SPPD Halaman 1
    */
   buildContent(data) {
     const { satker, st, pelaksana, pejabat } = data;
-    // Ambil pelaksana pertama (SPPD per orang)
     const p = Array.isArray(pelaksana) ? pelaksana[0] : pelaksana;
     const elements = [];
 
-    // ============================================================
-    // HALAMAN 1: SPPD DEPAN
-    // ============================================================
+    const ppkName = pejabat.ppk?.nama || pejabat.kpa?.nama || '';
+    const ppkNip = pejabat.ppk?.nip || pejabat.kpa?.nip || '';
+    const direkturName = pejabat.direktur?.nama || pejabat.kpa?.nama || '';
+    const direkturNip = pejabat.direktur?.nip || pejabat.kpa?.nip || '';
 
-    // Header
+    // ============================================================
+    // Header Info (Lembar ke, Kode No, Nomor)
+    // ============================================================
     elements.push(
-      createParagraph('SURAT PERINTAH PERJALANAN DINAS (SPPD)', {
+      createParagraph(`Lembar ke\t: ${st.lembar_ke || '1'}`, {
+        align: 'right',
+        size: 20,
+      })
+    );
+    elements.push(
+      createParagraph(`Kode No.\t:`, {
+        align: 'right',
+        size: 20,
+      })
+    );
+    elements.push(
+      createParagraph(`Nomor\t: ${st.nomor_sppd || st.nomor}`, {
+        align: 'right',
+        size: 20,
+        spaceAfter: 120,
+      })
+    );
+
+    // ============================================================
+    // Title
+    // ============================================================
+    elements.push(
+      createParagraph('SURAT PERJALANAN DINAS (SPD)', {
         align: 'center',
         bold: true,
         size: 26,
-        spaceAfter: 60,
-      })
-    );
-
-    elements.push(
-      createParagraph(`Nomor: ${st.nomor_sppd || st.nomor}`, {
-        align: 'center',
         spaceAfter: 180,
       })
     );
 
-    // Tabel isi SPPD
-    const sppdData = [
-      ['1', 'Pejabat Pembuat Komitmen', pejabat.ppk?.nama || pejabat.kpa?.nama || '-'],
-      [
-        '2',
-        'Nama pegawai yang diperintahkan',
-        p.nama,
-      ],
-      [
-        '3',
-        'a. Pangkat dan Golongan\nb. Jabatan\nc. Tingkat Biaya Perjalanan Dinas',
-        `${p.pangkat || '-'} / ${p.golongan || '-'}\n${p.jabatan || '-'}\nTingkat ${getTingkatBiaya(p.golongan)}`,
-      ],
-      ['4', 'Maksud Perjalanan Dinas', st.maksud_tujuan],
-      ['5', 'Alat angkutan yang digunakan', st.moda_transport || 'Darat/Udara'],
-      [
-        '6',
-        'a. Tempat berangkat\nb. Tempat tujuan',
-        `${st.kota_asal || satker.kota}\n${st.kota_tujuan}`,
-      ],
-      [
-        '7',
-        'a. Lamanya Perjalanan Dinas\nb. Tanggal berangkat\nc. Tanggal harus kembali',
-        `${st.lama_hari} hari\n${formatTanggalPanjang(st.tanggal_berangkat)}\n${formatTanggalPanjang(st.tanggal_kembali)}`,
-      ],
-      ['8', 'Pengikut', '-'],
-      [
-        '9',
-        'Pembebanan Anggaran\na. Instansi\nb. Akun',
-        `\n${satker.nama}\n${st.kode_akun || '524111'}`,
-      ],
-      ['10', 'Keterangan lain-lain', st.keterangan || '-'],
-    ];
+    // ============================================================
+    // Main Table (Items 1-10)
+    // ============================================================
+    elements.push(this.createMainTable(data, p, pejabat, satker, st));
 
-    elements.push(
-      createSimpleTable(sppdData, [400, 3200, 4800], { hasHeader: false })
-    );
-
-    elements.push(...createSpacer(1));
-
-    // Tanda tangan PPK (halaman depan)
-    const ppkName = pejabat.ppk?.nama || pejabat.kpa?.nama || '';
-    const ppkNip = pejabat.ppk?.nip || pejabat.kpa?.nip || '';
-
-    elements.push(
-      createParagraph(`Dikeluarkan di : ${satker.kota}`, {
-        indentLeft: 4500,
-      })
-    );
-    elements.push(
-      createParagraph(
-        `Tanggal        : ${formatTanggalPanjang(st.tanggal_dibuat || new Date())}`,
-        {
-          indentLeft: 4500,
-          spaceAfter: 240,
-        }
-      )
-    );
-
-    elements.push(
-      createParagraph('Pejabat Pembuat Komitmen,', {
-        indentLeft: 4500,
-        spaceAfter: 240,
-      })
-    );
-
-    elements.push(...createSpacer(3));
-
-    elements.push(
-      createParagraph(ppkName, {
-        indentLeft: 4500,
-        bold: true,
-        underline: true,
-      })
-    );
-    elements.push(
-      createParagraph(`NIP. ${ppkNip}`, {
-        indentLeft: 4500,
-      })
-    );
+    elements.push(...createSpacer(0.5));
 
     // ============================================================
-    // PAGE BREAK - HALAMAN 2: SPPD BELAKANG
+    // Signature PPK
     // ============================================================
-    elements.push(createPageBreak());
-
-    // Header halaman belakang
     elements.push(
-      createParagraph('II. PENGESAHAN TIBA DAN BERANGKAT', {
-        bold: true,
+      createParagraph(`Dikeluarkan di\t: ${satker.kota || 'S o r o n g'}`, {
+        indentLeft: 4800,
         size: 24,
-        spaceAfter: 180,
-      })
-    );
-
-    // Tabel pengesahan (untuk ditandatangani di tempat tujuan)
-    // 3 baris untuk 3 tempat tujuan/transit
-    for (let i = 0; i < 3; i++) {
-      elements.push(
-        createParagraph(`${i + 1}.`, { bold: true, spaceAfter: 60 })
-      );
-
-      const pengesahanTable = [
-        ['Tiba di:', '', 'Berangkat dari:', ''],
-        ['Pada tanggal:', '', 'Pada tanggal:', ''],
-        ['Kepala Kantor/Satuan Kerja:', '', 'Kepala Kantor/Satuan Kerja:', ''],
-        ['', '', '', ''],
-        ['(................................)', '', '(................................)', ''],
-        ['NIP.', '', 'NIP.', ''],
-      ];
-
-      elements.push(
-        createSimpleTable(pengesahanTable, [1800, 2400, 1800, 2400], {
-          hasHeader: false,
-          fontSize: 20,
-        })
-      );
-
-      elements.push(...createSpacer(0.5));
-    }
-
-    // Catatan
-    elements.push(
-      createParagraph('III. CATATAN LAIN-LAIN', {
-        bold: true,
-        spaceAfter: 60,
       })
     );
     elements.push(
-      createParagraph('_________________________________________________________________')
-    );
-    elements.push(
-      createParagraph('_________________________________________________________________')
-    );
-
-    elements.push(...createSpacer(1));
-
-    // Perhatian
-    elements.push(
-      createParagraph('IV. PERHATIAN', { bold: true, spaceAfter: 120 })
-    );
-    elements.push(
-      createParagraph(
-        'Pejabat yang berwenang menerbitkan SPPD, pegawai yang melakukan perjalanan dinas, para pejabat yang mengesahkan tanggal tiba/berangkat, serta Bendahara Pengeluaran bertanggung jawab berdasarkan peraturan-peraturan Keuangan Negara apabila negara menderita rugi akibat kesalahan, kelalaian, dan kealpaannya.',
-        { align: 'justify', size: 20 }
-      )
-    );
-
-    elements.push(...createSpacer(2));
-
-    // Tanda tangan yang melakukan perjalanan (halaman belakang)
-    elements.push(
-      createParagraph('Telah diperiksa dengan keterangan bahwa perjalanan', {
-        indentLeft: 4500,
+      createParagraph(`Tanggal\t\t: ${formatTanggalPanjang(st.tanggal_dibuat || new Date())}`, {
+        indentLeft: 4800,
+        size: 24,
       })
     );
     elements.push(
-      createParagraph('tersebut di atas benar dilakukan atas perintahnya dan', {
-        indentLeft: 4500,
+      createParagraph('Pejabat Pembuat Komitmen', {
+        indentLeft: 4800,
+        size: 24,
       })
     );
-    elements.push(
-      createParagraph('semata-mata untuk kepentingan jabatan dalam waktu', {
-        indentLeft: 4500,
-      })
-    );
-    elements.push(
-      createParagraph('yang sesingkat-singkatnya.', {
-        indentLeft: 4500,
-        spaceAfter: 240,
-      })
-    );
-
-    elements.push(
-      createParagraph('Pejabat Pembuat Komitmen,', {
-        indentLeft: 4500,
-        spaceAfter: 240,
-      })
-    );
-
-    elements.push(...createSpacer(3));
-
+    // Space for signature and stamp (4 lines)
+    elements.push(createParagraph('', { size: 24 }));
+    elements.push(createParagraph('', { size: 24 }));
+    elements.push(createParagraph('', { size: 24 }));
+    elements.push(createParagraph('', { size: 24 }));
     elements.push(
       createParagraph(ppkName, {
-        indentLeft: 4500,
+        indentLeft: 4800,
         bold: true,
         underline: true,
+        size: 24,
       })
     );
     elements.push(
       createParagraph(`NIP. ${ppkNip}`, {
-        indentLeft: 4500,
+        indentLeft: 4800,
+        size: 24,
       })
     );
 
     return elements;
+  }
+
+  /**
+   * Create main SPPD table (items 1-10)
+   */
+  createMainTable(data, p, pejabat, satker, st) {
+    const ppkName = pejabat.ppk?.nama || pejabat.kpa?.nama || '-';
+    const tingkatBiaya = getTingkatBiaya(p.golongan);
+
+    // Build pengikut list
+    let pengikutText = '';
+    if (st.pengikut && st.pengikut.length > 0) {
+      pengikutText = st.pengikut.map((pk, i) =>
+        `${i+1}. ${pk.nama || '-'}\t${pk.tgl_lahir || '-'}\t${pk.keterangan || '-'}`
+      ).join('\n');
+    } else {
+      pengikutText = '1. -\t-\t-\n2. -\t-\t-\n3. -\t-\t-\n4. -\t-\t-';
+    }
+
+    const rows = [
+      this.createRow('1', 'Pejabat Pembuat Komitmen', ppkName),
+      this.createRow('2', 'Nama/NIP Pegawai yang diperintahkan', `${p.nama}/${p.nip || '-'}`),
+      this.createRow('3',
+        'a. Pangkat dan Golongan Ruang Gaji\nb. Jabatan/Instansi\nc. Tingkat Biaya Perjalanan Dinas',
+        `${p.pangkat || '-'}, ${p.golongan || '-'}\n${p.jabatan || '-'}\n" ${tingkatBiaya} "`
+      ),
+      this.createRow('4', 'Maksud Perjalanan Dinas', st.maksud_tujuan || '-'),
+      this.createRow('5', 'Alat Angkutan yang dipergunakan', st.moda_transport || 'Transportasi Udara'),
+      this.createRow('6',
+        'a. Tempat Berangkat\nb. Tempat Tujuan',
+        `${st.kota_asal || satker.kota || 'Sorong, Papua Barat'}\n${st.kota_tujuan || '-'}`
+      ),
+      this.createRow('7',
+        'a. Lamanya Perjalanan Dinas\nb. Tanggal Berangkat\nc. Tanggal harus kembali/tiba di tempat baru *)',
+        `${st.lama_hari || '-'} (${terbilangHari(st.lama_hari)}) Hari\n${formatTanggalSPPD(st.tanggal_berangkat)}\n${formatTanggalSPPD(st.tanggal_kembali)}`
+      ),
+      this.createPengikutRow(pengikutText),
+      this.createRow('9',
+        'Pembebanan Anggaran\na. Instansi\nb. Akun',
+        `\n${satker.nama || 'Politeknik Kelautan dan Perikanan Sorong'}\n${st.kode_akun || ''}`
+      ),
+      this.createRow('10', 'Keterangan Lain-lain', st.keterangan || ''),
+    ];
+
+    // Add note row
+    rows.push(
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [new Paragraph({ children: [new TextRun({ text: '*) Coret yang tidak perlu', italics: true, size: 18 })] })],
+            columnSpan: 3,
+            borders: BORDERS_NONE,
+          }),
+        ],
+      })
+    );
+
+    return new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: rows,
+    });
+  }
+
+  /**
+   * Create standard row
+   */
+  createRow(no, label, value) {
+    return new TableRow({
+      children: [
+        new TableCell({
+          children: [new Paragraph({ children: [new TextRun({ text: no, size: 22 })], alignment: AlignmentType.CENTER })],
+          width: { size: 500, type: WidthType.DXA },
+          borders: BORDERS_FULL,
+          verticalAlign: VerticalAlign.TOP,
+          margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        }),
+        new TableCell({
+          children: label.split('\n').map(line => new Paragraph({ children: [new TextRun({ text: line, size: 22 })] })),
+          width: { size: 4000, type: WidthType.DXA },
+          borders: BORDERS_FULL,
+          verticalAlign: VerticalAlign.TOP,
+          margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        }),
+        new TableCell({
+          children: value.split('\n').map(line => new Paragraph({ children: [new TextRun({ text: `: ${line}`, size: 22 })] })),
+          width: { size: 5500, type: WidthType.DXA },
+          borders: BORDERS_FULL,
+          verticalAlign: VerticalAlign.TOP,
+          margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        }),
+      ],
+    });
+  }
+
+  /**
+   * Create pengikut row with sub-headers
+   */
+  createPengikutRow(pengikutText) {
+    return new TableRow({
+      children: [
+        new TableCell({
+          children: [new Paragraph({ children: [new TextRun({ text: '8', size: 22 })], alignment: AlignmentType.CENTER })],
+          width: { size: 500, type: WidthType.DXA },
+          borders: BORDERS_FULL,
+          verticalAlign: VerticalAlign.TOP,
+          margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        }),
+        new TableCell({
+          children: [
+            new Paragraph({ children: [new TextRun({ text: 'Pengikut :', size: 22 })] }),
+            new Paragraph({ children: [new TextRun({ text: '\tN a m a\tTanggal Lahir\tKeterangan', size: 20 })] }),
+          ],
+          width: { size: 4000, type: WidthType.DXA },
+          borders: BORDERS_FULL,
+          verticalAlign: VerticalAlign.TOP,
+          margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        }),
+        new TableCell({
+          children: pengikutText.split('\n').map(line => new Paragraph({ children: [new TextRun({ text: line, size: 20 })] })),
+          width: { size: 5500, type: WidthType.DXA },
+          borders: BORDERS_FULL,
+          verticalAlign: VerticalAlign.TOP,
+          margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        }),
+      ],
+    });
+  }
+
+  /**
+   * Create Section I table (Berangkat dari)
+   */
+  createSectionITable(st, satker, direkturName, direkturNip) {
+    return new Table({
+      width: { size: 50, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [
+                new Paragraph({ children: [new TextRun({ text: 'I. Berangkat dari', size: 22 })] }),
+                new Paragraph({ children: [new TextRun({ text: '   (Tempat Kedudukan)', size: 20 })] }),
+                new Paragraph({ children: [new TextRun({ text: '   Pada Tanggal', size: 22 })] }),
+                new Paragraph({ children: [new TextRun({ text: '   Direktur,', size: 22 })] }),
+                new Paragraph({ children: [new TextRun({ text: '', size: 22 })] }),
+                new Paragraph({ children: [new TextRun({ text: '', size: 22 })] }),
+                new Paragraph({ children: [new TextRun({ text: '', size: 22 })] }),
+                new Paragraph({ children: [new TextRun({ text: direkturName, bold: true, underline: {}, size: 22 })] }),
+                new Paragraph({ children: [new TextRun({ text: `NIP. ${direkturNip}`, size: 22 })] }),
+              ],
+              width: { size: 3500, type: WidthType.DXA },
+              borders: BORDERS_FULL,
+              margins: { top: 80, bottom: 80, left: 100, right: 100 },
+            }),
+            new TableCell({
+              children: [
+                new Paragraph({ children: [new TextRun({ text: `: ${st.kota_asal || satker.kota || 'Sorong, Papua Barat'}`, size: 22 })] }),
+                new Paragraph({ children: [new TextRun({ text: '', size: 20 })] }),
+                new Paragraph({ children: [new TextRun({ text: ':', size: 22 })] }),
+              ],
+              width: { size: 3500, type: WidthType.DXA },
+              borders: BORDERS_FULL,
+              margins: { top: 80, bottom: 80, left: 100, right: 100 },
+            }),
+          ],
+        }),
+      ],
+    });
   }
 
   /**
@@ -263,7 +326,7 @@ class SPPDGenerator extends BaseDocumentGenerator {
   getSuggestedFilename(data) {
     const nomor = (data.st.nomor_sppd || data.st.nomor).replace(/\//g, '-');
     const nama = data.pelaksana?.[0]?.nama?.split(' ')[0] || 'Pelaksana';
-    return `SPPD_${nomor}_${nama}.docx`;
+    return `SPPD_Hal1_${nomor}_${nama}.docx`;
   }
 }
 
@@ -276,6 +339,30 @@ function getTingkatBiaya(golongan) {
   if (gol.startsWith('IV')) return 'A';
   if (gol.startsWith('III')) return 'B';
   return 'C';
+}
+
+/**
+ * Format tanggal untuk SPPD (contoh: 9-Okt-24)
+ */
+function formatTanggalSPPD(tanggal) {
+  if (!tanggal) return '-';
+  const date = new Date(tanggal);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const year = String(date.getFullYear()).slice(-2);
+  return `${day}-${month}-${year}`;
+}
+
+/**
+ * Terbilang hari
+ */
+function terbilangHari(num) {
+  const angka = ['nol', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh'];
+  if (!num || num < 0) return '-';
+  if (num <= 10) return angka[num];
+  if (num < 20) return angka[num - 10] + ' belas';
+  return String(num);
 }
 
 module.exports = { SPPDGenerator };

@@ -74,6 +74,13 @@ export const TIER_THRESHOLDS = {
   TIER3: Infinity       // > 50 juta
 };
 
+// Calculate tier from value
+export const calculateTier = (nilai) => {
+  if (nilai <= TIER_THRESHOLDS.TIER1) return 'TIER1';
+  if (nilai <= TIER_THRESHOLDS.TIER2) return 'TIER2';
+  return 'TIER3';
+};
+
 export const useLembarPermintaanStore = defineStore('lembarPermintaan', () => {
   // State
   const lpList = ref([]);
@@ -126,13 +133,6 @@ export const useLembarPermintaanStore = defineStore('lembarPermintaan', () => {
   const totalNilaiLP = computed(() => {
     return lpList.value.reduce((sum, lp) => sum + (lp.total_nilai || 0), 0);
   });
-
-  // Calculate tier from value
-  const calculateTier = (nilai) => {
-    if (nilai <= TIER_THRESHOLDS.TIER1) return 'TIER1';
-    if (nilai <= TIER_THRESHOLDS.TIER2) return 'TIER2';
-    return 'TIER3';
-  };
 
   // Get recommended procurement method
   const getMetodePengadaan = (tier) => {

@@ -1,40 +1,55 @@
-appId: id.ac.pkpsorong.ppk-assistant
-productName: PPK Assistant
-copyright: Copyright © 2025 Politeknik Kelautan dan Perikanan Sorong
+appId: id.ac.pkpsorong.asisten
+productName: ASISTEN
+copyright: Copyright © 2026 Politeknik Kelautan dan Perikanan Sorong
 
 directories:
   output: release
   buildResources: build
 
+asar: false
+
 files:
-  - src/main/**/*
-  - src/preload/**/*
-  - dist/renderer/**/*
+  - src/main/main.js
+  - dist/**/*
+  - prisma/schema.prisma
+  - prisma/database.db
   - package.json
   - node_modules/**/*
+  - "!node_modules/.cache"
+
+# .prisma directory (dotfile) is excluded by electron-builder defaults
+# Use extraFiles to include it in the packaged app
+extraFiles:
+  - from: node_modules/.prisma
+    to: resources/app/node_modules/.prisma
+    filter:
+      - "**/*"
+      - "!**/*.tmp*"
+
+extraResources:
+  - from: ../frontend/dist
+    to: frontend/dist
+  - from: template_word
+    to: template_word
 
 win:
   target:
     - target: nsis
       arch:
         - x64
-  icon: build/icon.ico
+  signAndEditExecutable: false
 
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
-  installerIcon: build/icon.ico
-  uninstallerIcon: build/icon.ico
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: PPK Assistant
+  shortcutName: ASISTEN
 
 mac:
   target: dmg
-  icon: build/icon.icns
   category: public.app-category.productivity
 
 linux:
   target: AppImage
-  icon: build/icon.png
   category: Office

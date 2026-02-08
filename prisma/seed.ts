@@ -1,14 +1,14 @@
 /**
- * ASISTEN - Phase 1 Core System
- * Database Seed Script
+ * ASISTEN - Database Seed Script
  *
- * This script seeds the database with initial data including:
- * - Workflow stages (PERENCANAAN, PERSIAPAN, KONTRAK, PELAKSANAAN, PEMBAYARAN, ARSIP)
+ * Seeds the database with:
+ * - Workflow stages
  * - Default roles
- * - Admin user
+ * - Admin user (admin/admin123)
  */
 
-import { PrismaClient, WorkflowState } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -22,58 +22,52 @@ async function main() {
 
   const workflowStages = [
     {
-      kode: WorkflowState.PERENCANAAN,
+      kode: 'PERENCANAAN',
       nama: 'Perencanaan',
       deskripsi: 'Tahap perencanaan dan penyusunan kegiatan',
       urutan: 1,
       is_initial: true,
       is_final: false,
-      color: '#3B82F6', // Blue
     },
     {
-      kode: WorkflowState.PERSIAPAN,
+      kode: 'PERSIAPAN',
       nama: 'Persiapan',
       deskripsi: 'Tahap persiapan pengadaan dan dokumen',
       urutan: 2,
       is_initial: false,
       is_final: false,
-      color: '#8B5CF6', // Purple
     },
     {
-      kode: WorkflowState.KONTRAK,
+      kode: 'KONTRAK',
       nama: 'Kontrak',
       deskripsi: 'Tahap penandatanganan dan pengelolaan kontrak',
       urutan: 3,
       is_initial: false,
       is_final: false,
-      color: '#F59E0B', // Amber
     },
     {
-      kode: WorkflowState.PELAKSANAAN,
+      kode: 'PELAKSANAAN',
       nama: 'Pelaksanaan',
       deskripsi: 'Tahap pelaksanaan pekerjaan',
       urutan: 4,
       is_initial: false,
       is_final: false,
-      color: '#10B981', // Emerald
     },
     {
-      kode: WorkflowState.PEMBAYARAN,
+      kode: 'PEMBAYARAN',
       nama: 'Pembayaran',
       deskripsi: 'Tahap proses pembayaran dan pencairan dana',
       urutan: 5,
       is_initial: false,
       is_final: false,
-      color: '#EF4444', // Red
     },
     {
-      kode: WorkflowState.ARSIP,
+      kode: 'ARSIP',
       nama: 'Arsip',
       deskripsi: 'Tahap pengarsipan dokumen dan penutupan',
       urutan: 6,
       is_initial: false,
       is_final: true,
-      color: '#6B7280', // Gray
     },
   ];
 
@@ -101,57 +95,51 @@ async function main() {
       permissions: ['*'],
     },
     {
+      kode: 'KPA',
+      nama: 'Kuasa Pengguna Anggaran',
+      deskripsi: 'Pejabat yang memperoleh kuasa dari PA untuk mengelola anggaran',
+      level: 90,
+      permissions: ['paket:*', 'dokumen:*', 'approval:approve', 'workflow:transition', 'keuangan:*', 'master:read', 'honorarium:*', 'sk:*'],
+    },
+    {
       kode: 'PPK',
       nama: 'Pejabat Pembuat Komitmen',
       deskripsi: 'Pejabat yang bertanggung jawab atas pelaksanaan pengadaan',
       level: 80,
-      permissions: ['paket:*', 'dokumen:*', 'approval:create', 'workflow:transition'],
+      permissions: ['paket:*', 'dokumen:*', 'approval:approve', 'workflow:transition', 'permintaan:*', 'kepanitiaan:*', 'hps:*', 'perjalanan:*', 'sk:*'],
     },
     {
-      kode: 'PPTK',
-      nama: 'Pejabat Pelaksana Teknis Kegiatan',
-      deskripsi: 'Pejabat yang membantu PPK dalam pelaksanaan kegiatan',
-      level: 70,
-      permissions: ['paket:read', 'dokumen:*', 'perjalanan:*'],
+      kode: 'PPSPM',
+      nama: 'Pejabat Penandatangan SPM',
+      deskripsi: 'Pejabat yang menandatangani Surat Perintah Membayar',
+      level: 75,
+      permissions: ['keuangan:*', 'dokumen:read', 'paket:read', 'approval:approve', 'honorarium:read'],
     },
     {
-      kode: 'BENDAHARA',
-      nama: 'Bendahara',
-      deskripsi: 'Pengelola keuangan dan pembayaran',
-      level: 60,
-      permissions: ['uang_persediaan:*', 'kuitansi:*', 'pertanggungjawaban:*'],
-    },
-    {
-      kode: 'VERIFIKATOR',
-      nama: 'Verifikator',
-      deskripsi: 'Verifikasi dokumen dan pembayaran',
-      level: 50,
-      permissions: ['dokumen:read', 'approval:create', 'pertanggungjawaban:verify'],
-    },
-    {
-      kode: 'STAFF',
-      nama: 'Staff',
-      deskripsi: 'Staff pelaksana umum',
-      level: 10,
-      permissions: ['paket:read', 'dokumen:read', 'perjalanan:read'],
+      kode: 'OPERATOR',
+      nama: 'Operator',
+      deskripsi: 'Operator data entry dan pengelolaan dokumen',
+      level: 20,
+      permissions: ['paket:read', 'paket:create', 'paket:update', 'dokumen:read', 'dokumen:create', 'dokumen:update', 'dokumen:export', 'permintaan:read', 'permintaan:create', 'permintaan:update', 'perjalanan:read', 'perjalanan:create', 'perjalanan:update', 'master:read', 'master:create', 'master:update', 'hps:read', 'hps:create', 'hps:update', 'kepanitiaan:read', 'kepanitiaan:create', 'kepanitiaan:update', 'honorarium:read', 'honorarium:create', 'honorarium:update', 'sk:read', 'sk:create', 'sk:update', 'keuangan:read', 'keuangan:create'],
     },
   ];
 
   for (const role of defaultRoles) {
+    const permStr = JSON.stringify(role.permissions);
     await prisma.roles.upsert({
       where: { kode: role.kode },
       update: {
         nama: role.nama,
         deskripsi: role.deskripsi,
         level: role.level,
-        permissions: role.permissions,
+        permissions: permStr,
       },
       create: {
         kode: role.kode,
         nama: role.nama,
         deskripsi: role.deskripsi,
         level: role.level,
-        permissions: role.permissions,
+        permissions: permStr,
       },
     });
   }
@@ -163,14 +151,17 @@ async function main() {
   // ==========================================================================
   console.log('Seeding admin user...');
 
+  const hashedPassword = await bcrypt.hash('admin123', 10);
+
   const adminUser = await prisma.users.upsert({
     where: { username: 'admin' },
-    update: {},
+    update: {
+      password: hashedPassword,
+    },
     create: {
       username: 'admin',
       email: 'admin@asisten.local',
-      password: '$2b$10$placeholder_hash_replace_in_production', // Replace with bcrypt hash
-      nama: 'System Administrator',
+      password: hashedPassword,
       is_active: true,
     },
   });
@@ -197,6 +188,8 @@ async function main() {
   }
 
   console.log('Admin user created and role assigned');
+  console.log('  Username: admin');
+  console.log('  Password: admin123');
 
   // ==========================================================================
   // SUMMARY
@@ -206,7 +199,7 @@ async function main() {
   console.log('========================================');
   console.log(`Workflow Stages: ${workflowStages.length}`);
   console.log(`Roles: ${defaultRoles.length}`);
-  console.log(`Users: 1 (admin)`);
+  console.log(`Users: 1 (admin/admin123)`);
   console.log('========================================\n');
 }
 

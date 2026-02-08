@@ -191,6 +191,23 @@ model satker {
   email        String?
   is_active    Boolean @default(true)
 
+  // Pejabat Satker
+  kpa_id       String? // Kuasa Pengguna Anggaran
+  kpa_nama     String?
+  kpa_nip      String?
+  ppk_id       String? // Pejabat Pembuat Komitmen
+  ppk_nama     String?
+  ppk_nip      String?
+  ppspm_id     String? // Pejabat Penanda Tangan SPM
+  ppspm_nama   String?
+  ppspm_nip    String?
+  bendahara_id String? // Bendahara Pengeluaran
+  bendahara_nama String?
+  bendahara_nip  String?
+  ka_sub_bau_id String? // Kepala Sub Bagian Administrasi Umum
+  ka_sub_bau_nama String?
+  ka_sub_bau_nip String?
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
   is_deleted Boolean  @default(false)
@@ -227,6 +244,15 @@ model pegawai {
 
   telepon         String?
   email           String?
+
+  // Data Keuangan & Identitas
+  npwp            String?
+  npwp16          String?
+  no_rekening     String?
+  nama_bank       String?
+  nama_rekening   String?
+  no_kk           String?
+
   status          String    @default("AKTIF")  // AKTIF, CUTI, PENSIUN
   is_active       Boolean   @default(true)
 
@@ -239,6 +265,7 @@ model pegawai {
   user            users?
   peserta_dinas   peserta_dinas[]
   dokumen_pihak   dokumen_pihak[]   // Sebagai pihak di dokumen
+  detail_sk       detail_sk[]
 
   @@index([nip])
   @@index([satker_id])
@@ -249,7 +276,7 @@ model pegawai {
 // 4. ANGGARAN & KEGIATAN (2 tables: anggaran, paket)
 // =============================================================================
 
-/// Anggaran - DIPA dan Rincian (normalized)
+/// Anggaran - DIPA dan Rincian (individual detail items)
 model anggaran {
   id              String  @id @default(uuid())
   satker_id       String
@@ -260,6 +287,7 @@ model anggaran {
   kode_kegiatan   String?
   kode_output     String?
   kode_komponen   String?
+  kode_subkomponen String?
   kode_akun       String  // MAK
 
   // Uraian
@@ -267,15 +295,34 @@ model anggaran {
   nama_kegiatan   String?
   nama_output     String?
   nama_komponen   String?
+  uraian_subkomponen String?
   nama_akun       String?
 
+  // Detail Item Information
+  nomor_item      Int?    // Item number from CSV (0 = header, >0 = detail)
+  uraian_item     String? // Specific item description
+  volume          Decimal @default(0)
+  satuan          String?
+  harga_satuan    Decimal @default(0)
+
   // Nilai
-  pagu            Decimal @default(0)
+  pagu            Decimal @default(0) // Total value for this item
   realisasi       Decimal @default(0)
   sisa            Decimal @default(0)
 
-  // Detail rincian (JSON array): [{uraian, volume, satuan, harga, jumlah}]
-  rincian         String? // JSON
+  // Monthly POK allocation (POK_NILAI_1 to POK_NILAI_12)
+  pok_bulan_01    Decimal @default(0)
+  pok_bulan_02    Decimal @default(0)
+  pok_bulan_03    Decimal @default(0)
+  pok_bulan_04    Decimal @default(0)
+  pok_bulan_05    Decimal @default(0)
+  pok_bulan_06    Decimal @default(0)
+  pok_bulan_07    Decimal @default(0)
+  pok_bulan_08    Decimal @default(0)
+  pok_bulan_09    Decimal @default(0)
+  pok_bulan_10    Decimal @default(0)
+  pok_bulan_11    Decimal @default(0)
+  pok_bulan_12    Decimal @default(0)
 
   jenis_belanja   String? // PEGAWAI, BARANG, MODAL, BANSOS
   sumber_dana     String? // RM, PNBP, PHLN
@@ -289,11 +336,50 @@ model anggaran {
   // Relations
   satker satker  @relation(fields: [satker_id], references: [id])
   paket  paket[]
+  paket_anggaran paket_anggaran[]  // Digunakan oleh paket (many-to-many)
+  surat_keputusan surat_keputusan[]
 
-  @@unique([satker_id, tahun, kode_akun])
+  @@unique([satker_id, tahun, kode_output, kode_subkomponen, kode_komponen, kode_akun, nomor_item])
   @@index([satker_id])
   @@index([tahun])
   @@index([kode_akun])
+}
+
+/// Penyedia - Data Vendor/Supplier
+model penyedia {
+  id              String    @id @default(uuid())
+  nama            String
+  alamat          String?
+  kota            String?
+  provinsi        String?
+  kode_pos        String?
+  npwp            String?
+  nama_npwp       String?   // Nama sesuai NPWP
+  telepon         String?
+  email           String?
+
+  // Data Rekening
+  nama_bank       String?
+  no_rekening     String?
+  nama_rekening   String?   // Nama pemilik rekening
+
+  // Kontak Person
+  pic_nama        String?
+  pic_telepon     String?
+  pic_email       String?
+
+  keterangan      String?
+  is_active       Boolean   @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  // Relations
+  paket           paket[]
+
+  @@index([nama])
+  @@index([npwp])
 }
 
 /// Paket - Paket Pekerjaan/Pengadaan
@@ -305,10 +391,12 @@ model paket {
   tahun           Int
   satker_id       String?
   anggaran_id     String?
+  penyedia_id     String?   // Link ke penyedia terpilih
 
   // Nilai
   pagu            Decimal   @default(0)
-  nilai_kontrak   Decimal?
+  nilai_negosiasi Decimal?  // Nilai setelah negosiasi
+  nilai_kontrak   Decimal?  // Nilai kontrak final
 
   // Periode
   tanggal_mulai   DateTime?
@@ -319,6 +407,15 @@ model paket {
   jenis_pengadaan   String?  // BARANG, JASA_KONSULTANSI, JASA_LAINNYA, KONSTRUKSI
   metode_pengadaan  String?  // LANGSUNG, PENUNJUKAN, TENDER, SELEKSI, EPURCHASING
 
+  // Data Kontrak
+  nomor_kontrak     String?
+  tanggal_kontrak   DateTime?
+  jangka_waktu      Int?      // dalam hari kalender
+
+  // Skema Pembayaran
+  skema_pembayaran  String?   // SERATUS_PERSEN, TERMIN
+  jumlah_termin     Int?      // Jumlah termin jika TERMIN
+
   // Status workflow
   status          String    @default("PERENCANAAN")  // PERENCANAAN, PERSIAPAN, PEMILIHAN, KONTRAK, PELAKSANAAN, SERAH_TERIMA, PEMBAYARAN, SELESAI
 
@@ -328,16 +425,112 @@ model paket {
   is_deleted Boolean  @default(false)
 
   // Relations
-  satker          satker?           @relation(fields: [satker_id], references: [id])
-  anggaran        anggaran?         @relation(fields: [anggaran_id], references: [id])
+  satker          satker?             @relation(fields: [satker_id], references: [id])
+  anggaran        anggaran?           @relation(fields: [anggaran_id], references: [id])
+  penyedia        penyedia?           @relation(fields: [penyedia_id], references: [id])
   dokumen         dokumen[]
   permintaan      permintaan[]
   perjalanan      perjalanan_dinas[]
   transaksi       transaksi_keuangan[]
+  dokumen_paket   dokumen_paket[]     // Dokumen workflow
+  termin          termin_pembayaran[] // Termin pembayaran
+  paket_anggaran  paket_anggaran[]    // Sumber anggaran (many-to-many)
+  analisa_harga   analisa_harga_satuan[] // HPS: Analisa harga satuan
+  boq             boq_item[]             // HPS: Bill of Quantities
 
   @@index([kode])
   @@index([tahun])
   @@index([satker_id])
+  @@index([penyedia_id])
+  @@index([status])
+}
+
+/// Paket Anggaran - Relasi many-to-many antara paket dan anggaran
+/// Satu paket bisa mengambil dana dari beberapa detail anggaran
+model paket_anggaran {
+  id              String    @id @default(uuid())
+  paket_id        String
+  anggaran_id     String
+  nilai_alokasi   Decimal   @default(0)  // Nilai yang dialokasikan dari anggaran ini
+
+  created_at DateTime @default(now())
+  is_deleted Boolean  @default(false)
+
+  // Relations
+  paket     paket    @relation(fields: [paket_id], references: [id], onDelete: Cascade)
+  anggaran  anggaran @relation(fields: [anggaran_id], references: [id])
+
+  @@unique([paket_id, anggaran_id])
+  @@index([paket_id])
+  @@index([anggaran_id])
+}
+
+/// Dokumen Paket - Dokumen per tahap workflow pengadaan
+model dokumen_paket {
+  id              String    @id @default(uuid())
+  paket_id        String
+
+  // Tahap workflow
+  tahap           String    // PERENCANAAN, PERSIAPAN, PEMILIHAN, KONTRAK, PELAKSANAAN, SERAH_TERIMA, PEMBAYARAN
+
+  // Jenis dokumen
+  jenis           String    // KAK, SPESIFIKASI_TEKNIS, SURVEY_HARGA_1, SURVEY_HARGA_2, SURVEY_HARGA_3, BA_SURVEY_HARGA, HPS, UNDANGAN_PL, BA_NEGOSIASI, BAHPL, SPK, SPMK, LAPORAN_KEMAJUAN, BAHP, BAST, KUITANSI, BAP, SPP_LS, SPM_LS, CHECKLIST_LS
+
+  nama            String    // Nama dokumen
+  nomor           String?   // Nomor dokumen (jika ada)
+  tanggal         DateTime? // Tanggal dokumen
+
+  // File upload
+  file_path       String?   // Path file yang diupload
+  file_name       String?   // Nama file asli
+  file_size       Int?      // Ukuran file dalam bytes
+  file_type       String?   // MIME type (application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document)
+
+  // Untuk termin (jika dokumen pembayaran termin)
+  termin_ke       Int?      // Termin ke berapa (1, 2, 3, dst)
+
+  // Status
+  status          String    @default("DRAFT")  // DRAFT, UPLOADED, VERIFIED
+
+  keterangan      String?
+
+  created_at DateTime @default(now())
+  created_by String?
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  // Relations
+  paket           paket     @relation(fields: [paket_id], references: [id], onDelete: Cascade)
+
+  @@index([paket_id])
+  @@index([tahap])
+  @@index([jenis])
+  @@index([status])
+}
+
+/// Termin Pembayaran - Detail termin untuk paket
+model termin_pembayaran {
+  id              String    @id @default(uuid())
+  paket_id        String
+
+  termin_ke       Int       // Urutan termin (1, 2, 3, dst)
+  persentase      Decimal   // Persentase dari nilai kontrak
+  nilai           Decimal   // Nilai nominal
+  keterangan      String?   // Keterangan termin
+
+  // Status pembayaran
+  status          String    @default("PENDING")  // PENDING, PROSES, LUNAS
+  tanggal_bayar   DateTime? // Tanggal pembayaran aktual
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  // Relations
+  paket           paket     @relation(fields: [paket_id], references: [id], onDelete: Cascade)
+
+  @@unique([paket_id, termin_ke])
+  @@index([paket_id])
   @@index([status])
 }
 
@@ -486,6 +679,7 @@ model permintaan {
   nomor           String    @unique
   tanggal         DateTime  @default(now())
   paket_id        String?
+  kepanitiaan_id  String?   // Link ke kepanitiaan
 
   // Pemohon
   pemohon_id      String?   // pegawai_id
@@ -519,11 +713,13 @@ model permintaan {
   is_deleted Boolean  @default(false)
 
   // Relations
-  paket paket?            @relation(fields: [paket_id], references: [id])
-  items item_permintaan[]
+  paket       paket?       @relation(fields: [paket_id], references: [id])
+  kepanitiaan kepanitiaan? @relation(fields: [kepanitiaan_id], references: [id])
+  items       item_permintaan[]
 
   @@index([nomor])
   @@index([paket_id])
+  @@index([kepanitiaan_id])
   @@index([status])
 }
 
@@ -608,6 +804,10 @@ model perjalanan_dinas {
   nomor           String    @unique
   paket_id        String?
 
+  // Surat Tugas
+  nomor_surat_tugas    String?
+  tanggal_surat_tugas  DateTime?
+
   maksud          String
   kota_asal       String
   kota_tujuan     String
@@ -650,7 +850,9 @@ model peserta_dinas {
 
   // Biaya per orang
   uang_harian     Decimal?
-  transport       Decimal?
+  transport       Decimal?       // Transport total (untuk kompatibilitas)
+  transport_udara Decimal?       // Transport pesawat
+  transport_darat Decimal?       // Transport darat
   penginapan      Decimal?
   lainnya         Decimal?
 
@@ -766,4 +968,547 @@ model audit_log {
   @@index([table_name, record_id])
   @@index([actor_id])
   @@index([created_at])
+}
+
+// =============================================================================
+// 10. STANDAR BIAYA MASUKAN (SBM)
+// =============================================================================
+
+/// SBM Uang Harian - Tarif uang harian perjalanan dinas
+model sbm_uang_harian {
+  id              String  @id @default(uuid())
+  tahun           Int     // Tahun anggaran
+  provinsi        String  // Nama provinsi
+  kode_provinsi   String? // Kode provinsi (opsional)
+
+  // Tarif berdasarkan lama perjalanan
+  luar_kota       Decimal @default(0) // Perjalanan dinas luar kota (lebih dari 8 jam)
+  dalam_kota      Decimal @default(0) // Perjalanan dinas dalam kota (lebih dari 8 jam)
+  diklat          Decimal @default(0) // Perjalanan dinas untuk diklat/pelatihan
+
+  keterangan      String?
+  is_active       Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  @@unique([tahun, provinsi])
+  @@index([tahun])
+  @@index([provinsi])
+}
+
+/// SBM Penginapan - Tarif penginapan perjalanan dinas
+model sbm_penginapan {
+  id              String  @id @default(uuid())
+  tahun           Int     // Tahun anggaran
+  provinsi        String  // Nama provinsi
+  kode_provinsi   String? // Kode provinsi (opsional)
+
+  // Tarif berdasarkan eselon/golongan
+  eselon_1        Decimal @default(0) // Pejabat Eselon I
+  eselon_2        Decimal @default(0) // Pejabat Eselon II
+  eselon_3        Decimal @default(0) // Pejabat Eselon III
+  eselon_4        Decimal @default(0) // Pejabat Eselon IV
+  golongan_4      Decimal @default(0) // Golongan IV (non-eselon)
+  golongan_3      Decimal @default(0) // Golongan III
+  golongan_2      Decimal @default(0) // Golongan II
+  golongan_1      Decimal @default(0) // Golongan I
+
+  keterangan      String?
+  is_active       Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  @@unique([tahun, provinsi])
+  @@index([tahun])
+  @@index([provinsi])
+}
+
+/// SBM Honor - Tarif honorarium
+model sbm_honor {
+  id              String  @id @default(uuid())
+  tahun           Int     // Tahun anggaran
+  kode            String  // Kode honor (misal: NARASUMBER, MODERATOR, dll)
+  nama            String  // Nama jenis honor
+  kategori        String? // Kategori (NARASUMBER, PANITIA, TIM_KERJA, dll)
+
+  // Tarif berdasarkan tingkatan
+  tarif_1         Decimal @default(0) // Tarif tingkat 1 (tertinggi)
+  tarif_2         Decimal @default(0) // Tarif tingkat 2
+  tarif_3         Decimal @default(0) // Tarif tingkat 3
+  tarif_4         Decimal @default(0) // Tarif tingkat 4 (terendah)
+
+  satuan          String? // Satuan (OJ, OK, OH, Orang, dll)
+  keterangan      String?
+  is_active       Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  @@unique([tahun, kode])
+  @@index([tahun])
+  @@index([kode])
+  @@index([kategori])
+}
+
+/// SBM Transport - Tarif transportasi
+model sbm_transport {
+  id              String  @id @default(uuid())
+  tahun           Int     // Tahun anggaran
+  asal            String  // Kota asal
+  tujuan          String  // Kota tujuan
+  jenis           String  // PESAWAT, KAPAL, KERETA, BIS
+
+  tarif           Decimal @default(0)
+
+  keterangan      String?
+  is_active       Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  @@unique([tahun, asal, tujuan, jenis])
+  @@index([tahun])
+  @@index([asal])
+  @@index([tujuan])
+}
+
+// =============================================================================
+// 11. KEPANITIAAN (Committee Management)
+// =============================================================================
+
+/// Kepanitiaan - Data Panitia/Tim Kerja
+model kepanitiaan {
+  id              String    @id @default(uuid())
+  nomor_sk        String    @unique  // Nomor SK Panitia
+  tanggal_sk      DateTime  // Tanggal SK
+  nama_kegiatan   String    // Nama Kegiatan/Panitia
+  jenis_panitia   String    // PENGADAAN, PEMERIKSA, PENERIMA, TIM_KERJA, dll
+
+  // Periode Aktif
+  tanggal_mulai   DateTime?
+  tanggal_selesai DateTime?
+
+  // Link ke Paket (opsional)
+  paket_id        String?
+
+  // Anggaran
+  anggaran_id     String?   // Link ke anggaran (MAK)
+  total_honor     Decimal   @default(0)
+
+  // Status
+  status          String    @default("DRAFT")  // DRAFT, AKTIF, SELESAI, BATAL
+
+  keterangan      String?
+
+  created_at DateTime @default(now())
+  created_by String?
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  // Relations
+  anggota    anggota_panitia[]
+  permintaan permintaan[]
+
+  @@index([nomor_sk])
+  @@index([jenis_panitia])
+  @@index([status])
+  @@index([tanggal_sk])
+}
+
+/// Anggota Panitia - Detail anggota panitia
+model anggota_panitia {
+  id              String    @id @default(uuid())
+  kepanitiaan_id  String
+  pegawai_id      String?   // Link ke pegawai (opsional, bisa anggota luar)
+
+  // Data anggota (jika bukan pegawai internal)
+  nama            String
+  nip             String?
+  jabatan         String?   // Jabatan di instansi
+  golongan        String?
+
+  // Peran dalam panitia
+  peran           String    // KETUA, SEKRETARIS, ANGGOTA, dll
+  urutan          Int       @default(0)
+
+  // Honorarium
+  honor_per_kegiatan Decimal @default(0)
+  jumlah_kegiatan    Int     @default(1)
+  total_honor        Decimal @default(0)
+
+  keterangan      String?
+
+  created_at DateTime @default(now())
+  is_deleted Boolean  @default(false)
+
+  // Relations
+  kepanitiaan kepanitiaan @relation(fields: [kepanitiaan_id], references: [id], onDelete: Cascade)
+
+  @@index([kepanitiaan_id])
+  @@index([pegawai_id])
+  @@index([peran])
+}
+
+// =============================================================================
+// 12. HONORARIUM BULANAN
+// =============================================================================
+
+/// Honorarium - Pembayaran Honorarium Bulanan
+model honorarium {
+  id              String    @id @default(uuid())
+  nomor           String    @unique
+  bulan           Int       // 1-12
+  tahun           Int
+
+  jenis           String    // NARASUMBER, MODERATOR, PANITIA, TIM_KERJA, dll
+  kepanitiaan_id  String?   // Link ke kepanitiaan (opsional)
+
+  total_kotor     Decimal   @default(0)
+  total_pph21     Decimal   @default(0)
+  total_bersih    Decimal   @default(0)
+
+  status          String    @default("DRAFT")  // DRAFT, DIAJUKAN, DISETUJUI, DIBAYAR
+  keterangan      String?
+
+  created_at DateTime @default(now())
+  created_by String?
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  // Relations
+  details    detail_honorarium[]
+
+  @@index([nomor])
+  @@index([bulan, tahun])
+  @@index([jenis])
+  @@index([status])
+}
+
+/// Detail Honorarium - Penerima honorarium
+model detail_honorarium {
+  id              String    @id @default(uuid())
+  honorarium_id   String
+  pegawai_id      String?
+
+  nama            String
+  nip             String?
+  jabatan         String?
+  golongan        String?
+
+  jenis_honor     String    // Jenis honor
+  tarif           Decimal   @default(0)
+  volume          Int       @default(1)
+  satuan          String    @default("OK")  // OK, OJ, OH, OB
+
+  jumlah_kotor    Decimal   @default(0)
+  pph21           Decimal   @default(0)
+  jumlah_bersih   Decimal   @default(0)
+
+  keterangan      String?
+
+  created_at DateTime @default(now())
+  is_deleted Boolean  @default(false)
+
+  // Relations
+  honorarium honorarium @relation(fields: [honorarium_id], references: [id], onDelete: Cascade)
+
+  @@index([honorarium_id])
+  @@index([pegawai_id])
+}
+
+// =============================================================================
+// 13. MONITORING SP2D
+// =============================================================================
+
+/// Monitoring SP2D - Data SPP, SPM, dan SP2D dari KPPN
+model monitoring_sp2d {
+  id                  String    @id @default(uuid())
+
+  // Data KPPN & Satker
+  kppn                String?   // Nama KPPN
+  kode_satker         String?   // Kode Satker
+  nama_satker         String?   // Nama Satker
+
+  // Data SPP/SPM
+  no_spp_spm          String?   // Nomor SPP/SPM
+  jenis_spp_spm       String?   // Jenis SPP/SPM (LS-BANYAK PENERIMA, GAJI, UP, dll)
+  status_spp_spm      String?   // Status SPP/SPM (Baru, Upload SP2D)
+  tanggal_spp         DateTime? // Tanggal SPP
+  tanggal_spm         DateTime? // Tanggal SPM
+  tanggal_rpd_harian  DateTime? // Tanggal RPD Harian
+
+  // Data SP2D
+  tanggal_sp2d        DateTime? // Tanggal SP2D
+  no_sp2d             String?   // Nomor SP2D
+  status_sp2d         String?   // Status SP2D (Terbit SP2D, Sudah Dikonfirmasi Bank, dll)
+
+  // Nilai
+  jumlah_pengeluaran  Decimal   @default(0) // Jumlah Pengeluaran
+  jumlah_potongan     Decimal   @default(0) // Jumlah Potongan
+  jumlah_pembayaran   Decimal   @default(0) // Jumlah Pembayaran (Pengeluaran - Potongan)
+
+  // Uraian & Pejabat
+  uraian              String?   // Uraian SPP/SPM
+  ppk_nama            String?   // Nama PPK
+  ppk_nip             String?   // NIP PPK
+  ppspm_nama          String?   // Nama PPSPM
+  ppspm_nip           String?   // NIP PPSPM
+
+  // Data Koreksi
+  spm_koreksi         Boolean   @default(false) // SPM Koreksi?
+  jenis_spm_koreksi   String?   // Jenis SPM Koreksi
+  jumlah_penerima_retur Int?    // Jumlah Penerima Retur
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  @@index([kode_satker])
+  @@index([no_spp_spm])
+  @@index([no_sp2d])
+  @@index([status_spp_spm])
+  @@index([status_sp2d])
+  @@index([tanggal_sp2d])
+  @@index([jenis_spp_spm])
+}
+
+// =============================================================================
+// 14. TARUNA (Mahasiswa Politeknik KP)
+// =============================================================================
+
+/// Taruna - Data Taruna/Mahasiswa
+model taruna {
+  id              String    @id @default(uuid())
+  nim             String    @unique
+  nit             String?   // Nomor Induk Taruna
+  nama            String
+  tempat_lahir    String?
+  tanggal_lahir   DateTime?
+  jenis_kelamin   String?   // L/P
+  program_studi   String?   // NAUTIKA, TEKNIKA, TPLP, dll
+  angkatan        Int?      // Tahun masuk (2022, 2023, dst)
+  semester        Int?
+  kelas           String?
+  telepon         String?
+  email           String?
+  alamat          String?
+  nama_ortu       String?
+  no_rekening     String?
+  nama_bank       String?
+  status          String    @default("AKTIF")  // AKTIF, CUTI, LULUS, DO
+  is_active       Boolean   @default(true)
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  is_deleted      Boolean   @default(false)
+
+  // Relations
+  detail_sk       detail_sk[]
+
+  @@index([nim])
+  @@index([nit])
+  @@index([program_studi])
+  @@index([angkatan])
+  @@index([status])
+}
+
+// =============================================================================
+// 15. SURAT KEPUTUSAN (SK)
+// =============================================================================
+
+/// Surat Keputusan - SK Pengelola Keuangan, Honor Kegiatan, Taruna
+model surat_keputusan {
+  id              String    @id @default(uuid())
+  nomor_sk        String    @unique
+  tanggal_sk      DateTime
+  jenis           String    // PENGELOLA_KEUANGAN, HONOR_KEGIATAN, TARUNA
+  judul           String?   // Judul/perihal SK
+
+  // Periode berlaku
+  bulan           Int?      // Untuk SK bulanan (pengelola, taruna)
+  tahun           Int
+
+  // Referensi anggaran
+  anggaran_id     String?
+
+  // Dasar hukum (JSON array of strings)
+  dasar_hukum     String?   // JSON: ["UU No...", "PMK No..."]
+
+  // Penandatangan
+  penandatangan_nama    String?
+  penandatangan_nip     String?
+  penandatangan_jabatan String?  // biasanya KPA
+
+  // Totals (calculated)
+  total_kotor     Decimal   @default(0)
+  total_pph       Decimal   @default(0)
+  total_bersih    Decimal   @default(0)
+
+  status          String    @default("DRAFT")  // DRAFT, AKTIF, SELESAI, BATAL
+
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  is_deleted      Boolean   @default(false)
+
+  // Relations
+  anggaran        anggaran?   @relation(fields: [anggaran_id], references: [id])
+  details         detail_sk[]
+
+  @@index([jenis])
+  @@index([tahun])
+  @@index([status])
+}
+
+/// Detail SK - Penerima/detail per SK
+model detail_sk {
+  id              String    @id @default(uuid())
+  sk_id           String
+  urutan          Int       @default(0)
+
+  // Penerima (bisa pegawai atau taruna)
+  pegawai_id      String?
+  taruna_id       String?
+  nama            String
+  nip             String?   // NIP untuk pegawai
+  nim             String?   // NIM untuk taruna
+
+  // Jabatan/peran dalam SK
+  jabatan         String?   // KPA, PPK, PPSPM, BENDAHARA, STAF, NARASUMBER, dll
+  golongan        String?
+
+  // Kalkulasi
+  tarif           Decimal   @default(0)
+  volume          Int       @default(1)
+  satuan          String?   // Bulan, OJ, Keg, dll
+  jumlah_kotor    Decimal   @default(0)
+  pph             Decimal   @default(0)
+  jumlah_bersih   Decimal   @default(0)
+
+  // Data tambahan
+  npwp            String?
+  no_rekening     String?
+  nama_bank       String?
+  keterangan      String?
+
+  created_at      DateTime  @default(now())
+  is_deleted      Boolean   @default(false)
+
+  // Relations
+  surat_keputusan surat_keputusan @relation(fields: [sk_id], references: [id], onDelete: Cascade)
+  pegawai         pegawai?        @relation(fields: [pegawai_id], references: [id])
+  taruna          taruna?         @relation(fields: [taruna_id], references: [id])
+
+  @@index([sk_id])
+  @@index([pegawai_id])
+  @@index([taruna_id])
+}
+
+// ==================== HPS KONSTRUKSI ====================
+
+// Master Harga Satuan (Bahan, Upah, Alat) dari Perwali
+model harga_satuan {
+  id        String   @id @default(uuid())
+  kode      String                         // II.23.141, II.24.15, dll
+  uraian    String                         // "Serat semen/grc 4mm", "Pekerja"
+  jenis     String                         // BAHAN, UPAH, ALAT
+  satuan    String                         // kg, Lbr, hr, m1, m2, m3, dll
+  harga     Decimal  @default(0)
+  tahun     Int                            // 2025, 2026
+  sumber    String?                        // "Perwali Kota Sorong No 15/2024"
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  analisa_details analisa_detail[]
+
+  @@index([jenis, tahun])
+  @@index([kode])
+}
+
+// Analisa Harga Satuan per item pekerjaan per paket
+model analisa_harga_satuan {
+  id              String   @id @default(uuid())
+  paket_id        String
+  kode_analisa    String?                  // A.1.6.12, A.4.5.2.40.1
+  nama_pekerjaan  String                   // "Pek. Pemasangan 1 m2 Langit-langit..."
+  satuan          String                   // m2, m1, dll
+  overhead_persen Decimal  @default(10)    // 10-15%
+
+  // Computed totals (disimpan untuk performa)
+  total_tenaga    Decimal  @default(0)
+  total_bahan     Decimal  @default(0)
+  total_alat      Decimal  @default(0)
+  total_dasar     Decimal  @default(0)     // A+B+C
+  total_overhead  Decimal  @default(0)     // overhead % x total_dasar
+  harga_satuan    Decimal  @default(0)     // total_dasar + total_overhead
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  paket   paket            @relation(fields: [paket_id], references: [id])
+  details analisa_detail[]
+  boq_items boq_item[]
+}
+
+// Detail komponen analisa (tenaga kerja, bahan, alat)
+model analisa_detail {
+  id              String   @id @default(uuid())
+  analisa_id      String
+  kelompok        String                   // TENAGA_KERJA, BAHAN, PERALATAN
+  harga_satuan_id String?                  // FK ke master (nullable jika manual)
+  uraian          String
+  kode            String?
+  satuan          String
+  koefisien       Decimal  @default(0)
+  harga           Decimal  @default(0)     // harga per satuan
+  jumlah_harga    Decimal  @default(0)     // koefisien x harga
+
+  created_at DateTime @default(now())
+  is_deleted Boolean  @default(false)
+
+  analisa       analisa_harga_satuan @relation(fields: [analisa_id], references: [id])
+  master_harga  harga_satuan?        @relation(fields: [harga_satuan_id], references: [id])
+}
+
+// BOQ (Bill of Quantities) per paket
+model boq_item {
+  id                String   @id @default(uuid())
+  paket_id          String
+  nomor             Int                    // Urutan: 1, 2, 3...
+  kelompok          String   @default("A") // Group: A, B, C...
+  uraian_pekerjaan  String
+  kode_analisa      String?
+  analisa_id        String?                // FK ke analisa
+  volume            Decimal  @default(0)
+  satuan            String
+  harga_satuan      Decimal  @default(0)   // dari analisa atau manual
+  jumlah_harga      Decimal  @default(0)   // volume x harga_satuan
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  is_deleted Boolean  @default(false)
+
+  paket   paket                 @relation(fields: [paket_id], references: [id])
+  analisa analisa_harga_satuan? @relation(fields: [analisa_id], references: [id])
+}
+
+// Riwayat import realisasi dari Laporan FA Detail
+model realisasi_import {
+  id              String   @id @default(uuid())
+  tahun           Int
+  periode         String   // e.g. "Februari 2026"
+  nama_file       String
+  jumlah_mak      Int      @default(0)
+  matched         Int      @default(0)
+  unmatched       Int      @default(0)
+  total_pagu      Decimal  @default(0)
+  total_realisasi Decimal  @default(0)
+  created_at      DateTime @default(now())
 }
